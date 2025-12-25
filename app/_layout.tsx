@@ -1,29 +1,114 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { Slot, useRouter, usePathname } from 'expo-router';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Appearance, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  // ========================================
+  // HOOKS ET STATE
+  // ========================================
+  const router = useRouter();
+  const currentPath = usePathname();
+  
+  const [lastPath, setLastPath] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Refs pour éviter les dépendances circulaires
+  const currentPathRef = useRef('/');
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
-  }
+  // ========================================
+  // MISE À JOUR DES REFS
+  // ========================================
+  useEffect(() => {
+    currentPathRef.current = currentPath;
+  }, [currentPath]);
 
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-  );
+  // ========================================
+  // FONCTIONS D'AUTHENTIFICATION
+  // ========================================
+  
+  /**
+   * Gère la redirection lors de l'initialisation
+   */
+  const handleInitialRedirection = useCallback(async () => {
+    console.log('🟢 Initialisation - Authentification');
+
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const userData = await AsyncStorage.getItem('userData');
+
+      setTimeout(() => {
+        if (token && userData) {
+          router.replace('/auth/login');
+        } else {
+          router.replace('/');
+        }
+      }, 0);
+    } catch (error) {
+      console.log('❌ Erreur auth:', error);
+      setTimeout(() => router.replace('/'), 0);
+    }
+  }, [router]);
+
+  // ========================================
+  // GESTION DES ÉVÉNEMENTS APP
+  // ========================================
+  
+  /**
+   * Gère le retour de l'app au premier plan
+   */
+  const handleAppStateChange = useCallback((nextAppState) => {
+    if (nextAppState === 'active') {
+      console.log('📱 App revenue au premier plan');
+      
+      // Vous pouvez ajouter ici d'autres logiques au retour de l'app
+      // comme rafraîchir les données, etc.
+    }
+  }, []);
+
+  // ========================================
+  // EFFECTS D'INITIALISATION
+  // ========================================
+  
+  /**
+   * Initialisation principale de l'app (une seule fois)
+   */
+  useEffect(() => {
+    if (isInitialized) return;
+
+    const initializeApp = async () => {
+      console.log('🚀 Initialisation de l\'app...');
+      
+      // Configuration du thème
+      Appearance.setColorScheme('light');
+      
+      // Gestion de la redirection initiale
+      await handleInitialRedirection();
+      
+      setIsInitialized(true);
+    };
+
+    initializeApp();
+  }, [isInitialized, handleInitialRedirection]);
+
+  /**
+   * Configuration des listeners après l'initialisation
+   */
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    // Listener pour les changements d'état de l'app
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Nettoyage
+    return () => {
+      console.log('🧹 Nettoyage...');
+      subscription?.remove();
+    };
+  }, [isInitialized, handleAppStateChange]);
+
+  // ========================================
+  // RENDER
+  // ========================================
+  return <Slot />;
 }

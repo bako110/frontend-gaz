@@ -1,42 +1,67 @@
 {
   "expo": {
-    "name": "gaz",
-    "slug": "gaz",
+    "name": "Express-Gaz",
+    "slug": "Express-Gaz",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/gaz.png",
+    "icon": "./assets/images/express-gaz.png",
     "scheme": "gaz",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "L'application a besoin d'accéder à votre position pour la géolocalisation.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.robert10.ExpressGaz"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/gaz.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/express-gaz.png",
+        "backgroundColor": "#1a1a2e"
       },
-      "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/gaz.png"
+      "package": "com.robert10.ExpressGaz",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/gaz.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "image": "./assets/images/express-gaz.png",
+          "backgroundColor": "#1a1a2e"
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Autorisez $(PRODUCT_NAME) à accéder à vos photos.",
+          "cameraPermission": "Autorisez $(PRODUCT_NAME) à utiliser votre caméra."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Autorisez $(PRODUCT_NAME) à utiliser votre position."
+        }
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "99a8f860-95ff-404e-a471-f7a4d091a24b"
+      }
     }
   }
 }

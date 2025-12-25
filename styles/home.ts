@@ -1,0 +1,328 @@
+import { StyleSheet, Dimensions, Platform } from 'react-native';
+
+const { width } = Dimensions.get('window');
+
+const homestyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    marginRight: 15,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeText: {},
+  greeting: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+  },
+  userName: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  menuBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  balanceCardGradient: {
+    padding: 20,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  balanceLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+  },
+  balanceAmount: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
+  balanceActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  balanceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  balanceBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    marginLeft: 5,
+    fontWeight: '600',
+  },
+  content: {
+    padding: 20,
+  },
+  section: {
+    marginBottom: 25,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2D3748',
+  },
+  seeAll: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  quickActionItem: {
+    width: (width - 60) / 2,
+    marginBottom: 15,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  quickActionGradient: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  quickActionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  quickActionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2D3748',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  promotionCard: {
+    width: width * 0.8,
+    marginRight: 15,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  promotionGradient: {
+    padding: 20,
+    minHeight: 120,
+    justifyContent: 'space-between',
+  },
+  promotionContent: {
+    flex: 1,
+  },
+  promotionIcon: {
+    marginBottom: 10,
+  },
+  promotionTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  promotionDescription: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  promotionAction: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 25,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#718096',
+    fontWeight: '500',
+  },
+  orderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  orderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  orderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  orderDetails: {
+    flex: 1,
+  },
+  orderType: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginBottom: 2,
+  },
+  orderMeta: {
+    fontSize: 12,
+    color: '#718096',
+  },
+  orderRight: {
+    alignItems: 'flex-end',
+  },
+  orderPrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 5,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+export default homestyles;
