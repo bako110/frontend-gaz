@@ -18,11 +18,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '@/service/config';
 import LivreurFooter from './LivreurFooter';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
 const WalletScreen = () => {
   const router = useRouter();
+  const { isDarkMode } = useTheme();
   const [walletTransactions, setWalletTransactions] = useState([]);
   const [livreurInfo, setLivreurInfo] = useState({
     name: '',
@@ -410,7 +412,7 @@ const TransactionCard = ({ transaction }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
       <LinearGradient colors={['#1565C0', '#1565C0']} style={styles.header}>
-        <Text style={styles.headerTitle}>Mon Wallet</Text>
+        <Text style={[styles.headerTitle, { marginTop: 15 }]}>Mon Wallet</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>

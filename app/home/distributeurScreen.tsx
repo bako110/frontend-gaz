@@ -1285,114 +1285,147 @@ export default function DistributorDashboard() {
       case 'driver_assigned': return 'car-outline';
       case 'order_completed': return 'checkmark-done-outline';
       case 'payment_received': return 'cash-outline';
-      default: return 'information-circle-outline';
+      default: return 'notifications-outline';
     }
   };
 
-  // Composant Modal des Notifications
   const NotificationModal = () => (
     <Modal
-      animationType="fade"
+      animationType="slide"
       transparent={true}
       visible={notificationModalVisible}
       onRequestClose={() => setNotificationModalVisible(false)}
     >
-      <View style={styles.modalOverlayCentered}>
-        <View style={styles.modalContentCentered}>
-          <View style={styles.modalHeaderCentered}>
-            <View style={styles.modalTitleContainer}>
-              <Text style={styles.modalTitleCentered}>Notifications</Text>
-              {unreadCount > 0 && (
-                <TouchableOpacity 
-                  style={styles.markAllReadButton}
-                  onPress={markAllNotificationsAsRead}
-                >
-                  <Text style={styles.markAllReadText}>Tout marquer comme lu</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <TouchableOpacity 
-              onPress={() => setNotificationModalVisible(false)}
-              style={styles.closeButtonCentered}
-            >
-              <Ionicons name="close" size={20} color="#666" />
-            </TouchableOpacity>
-          </View>
-
-          {isLoadingNotifications ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2E7D32" />
-              <Text style={styles.loadingText}>Chargement des notifications...</Text>
-            </View>
-          ) : notifications.length > 0 ? (
-            <FlatList
-              data={notifications}
-              keyExtractor={(item) => item.id.toString()}
-              showsVerticalScrollIndicator={false}
-              style={{ maxHeight: height * 0.6 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.notificationItem,
-                    !item.read && styles.unreadNotification,
-                  ]}
-                  onPress={() => markNotificationAsRead(item.id)}
-                  onLongPress={() => {
-                    Alert.alert(
-                      "Supprimer la notification",
-                      "Voulez-vous supprimer cette notification ?",
-                      [
-                        { text: "Annuler", style: "cancel" },
-                        { 
-                          text: "Supprimer", 
-                          style: "destructive",
-                          onPress: () => deleteNotification(item.id)
-                        }
-                      ]
-                    );
-                  }}
-                >
-                  <View style={styles.notificationIconContainer}>
-                    <Ionicons 
-                      name={getNotificationIcon(item.type)} 
-                      size={20} 
-                      color={getNotificationColor(item.type)} 
-                    />
-                  </View>
-                  <View style={styles.notificationContent}>
-                    <View style={styles.notificationHeader}>
-                      <Text style={styles.notificationTitle}>{item.title}</Text>
-                      <Text style={styles.notificationDate}>{item.date}</Text>
-                    </View>
-                    <Text style={styles.notificationMessage}>{item.message}</Text>
-                    {!item.read && (
-                      <View style={styles.unreadDot} />
-                    )}
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.notificationAction}
-                    onPress={() => deleteNotification(item.id)}
-                  >
-                    <Ionicons name="close" size={16} color="#999" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.noNotifications}>
-                  <Ionicons name="notifications-off-outline" size={48} color="#718096" />
-                  <Text style={styles.noNotificationsText}>Aucune notification</Text>
+      <View style={styles.modernModalOverlay}>
+        <TouchableOpacity 
+          style={styles.modernModalBackdrop} 
+          activeOpacity={1} 
+          onPress={() => setNotificationModalVisible(false)}
+        />
+        <View style={styles.modernNotificationPanel}>
+          {/* Header moderne avec gradient */}
+          <LinearGradient
+            colors={['#2E7D32', '#388E3C']}
+            style={styles.modernNotificationHeader}
+          >
+            <View style={styles.modernHeaderContent}>
+              <View style={styles.modernHeaderLeft}>
+                <View style={styles.notificationIconBadge}>
+                  <Ionicons name="notifications" size={24} color="#fff" />
                 </View>
-              }
-            />
-          ) : (
-            <View style={styles.noNotifications}>
-              <Ionicons name="notifications-off-outline" size={48} color="#718096" />
-              <Text style={styles.noNotificationsText}>Aucune notification</Text>
-              <Text style={styles.noNotificationsSubtext}>
-                Vous serez notifié des mises à jour importantes ici
-              </Text>
+                <View>
+                  <Text style={styles.modernHeaderTitle}>Notifications</Text>
+                  <Text style={styles.modernHeaderSubtitle}>
+                    {notifications.length} {notifications.length > 1 ? 'nouvelles' : 'nouvelle'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.modernCloseButton} 
+                onPress={() => setNotificationModalVisible(false)}
+              >
+                <Ionicons name="close-circle" size={32} color="rgba(255,255,255,0.9)" />
+              </TouchableOpacity>
             </View>
-          )}
+            
+            {notifications.some(n => !n.read) && (
+              <TouchableOpacity 
+                style={styles.modernClearAllButton} 
+                onPress={markAllNotificationsAsRead}
+              >
+                <Ionicons name="checkmark-done-outline" size={18} color="#fff" />
+                <Text style={styles.modernClearAllText}>Tout marquer comme lu</Text>
+              </TouchableOpacity>
+            )}
+          </LinearGradient>
+          
+          {/* Liste des notifications avec scroll */}
+          <ScrollView 
+            style={styles.modernNotificationList}
+            showsVerticalScrollIndicator={false}
+          >
+            {isLoadingNotifications ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2E7D32" />
+                <Text style={styles.loadingText}>Chargement des notifications...</Text>
+              </View>
+            ) : notifications.length > 0 ? (
+              notifications.map((item) => (
+                <View key={item.id} style={styles.modernNotificationItemWrapper}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modernNotificationItem,
+                      !item.read && styles.modernUnreadNotification
+                    ]}
+                    onPress={() => markNotificationAsRead(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.modernNotificationIconContainer,
+                      { backgroundColor: `${getNotificationColor(item.type)}15` }
+                    ]}>
+                      <Ionicons 
+                        name={getNotificationIcon(item.type)}
+                        size={24} 
+                        color={getNotificationColor(item.type)}
+                      />
+                    </View>
+                    
+                    <View style={styles.modernNotificationContent}>
+                      <View style={styles.modernNotificationTitleRow}>
+                        <Text style={styles.modernNotificationTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        {!item.read && (
+                          <View style={styles.unreadDot} />
+                        )}
+                      </View>
+                      <Text style={styles.modernNotificationMessage} numberOfLines={2}>
+                        {item.message}
+                      </Text>
+                      <View style={styles.modernNotificationFooter}>
+                        <Ionicons name="time-outline" size={12} color="#999" />
+                        <Text style={styles.modernNotificationTime}>
+                          {item.date}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <TouchableOpacity 
+                      style={styles.modernNotificationDelete}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Alert.alert(
+                          "Supprimer",
+                          "Voulez-vous supprimer cette notification ?",
+                          [
+                            { text: "Annuler", style: "cancel" },
+                            { 
+                              text: "Supprimer", 
+                              style: "destructive",
+                              onPress: () => deleteNotification(item.id)
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#999" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
+              ))
+            ) : (
+              <View style={styles.modernNoNotifications}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="notifications-off-outline" size={64} color="#cbd5e0" />
+                </View>
+                <Text style={styles.modernNoNotificationsTitle}>Aucune notification</Text>
+                <Text style={styles.modernNoNotificationsSubtitle}>
+                  Vous êtes à jour ! Revenez plus tard.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </View>
     </Modal>

@@ -554,7 +554,7 @@ const fetchOrders = useCallback(async () => {
     }
   };
 
-  // ========== Composant Modal des Notifications ==========
+  // ========== Composant Modal des Notifications - Design Moderne ==========
   const NotificationModal = () => (
     <Modal
       animationType="slide"
@@ -562,115 +562,163 @@ const fetchOrders = useCallback(async () => {
       visible={notificationModalVisible}
       onRequestClose={() => setNotificationModalVisible(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { maxHeight: height * 0.8, width: width * 0.9 }]}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalTitleContainer}>
-              <Text style={styles.modalTitle}>Notifications</Text>
-              {notifications.some(n => !n.read) && (
-                <TouchableOpacity
-                  style={styles.markAllReadButton}
-                  onPress={markAllAsRead}
-                >
-                  <Text style={styles.markAllReadText}>Tout marquer comme lu</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <TouchableOpacity
-              onPress={() => setNotificationModalVisible(false)}
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-          {notificationError && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{notificationError}</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={fetchNotifications}
+      <View style={styles.modernModalOverlay}>
+        <TouchableOpacity 
+          style={styles.modernModalBackdrop} 
+          activeOpacity={1} 
+          onPress={() => setNotificationModalVisible(false)}
+        />
+        <View style={styles.modernNotificationPanel}>
+          {/* Header moderne avec gradient */}
+          <LinearGradient
+            colors={['#2E7D32', '#388E3C']}
+            style={styles.modernNotificationHeader}
+          >
+            <View style={styles.modernHeaderContent}>
+              <View style={styles.modernHeaderLeft}>
+                <View style={styles.notificationIconBadge}>
+                  <Ionicons name="notifications" size={24} color="#fff" />
+                </View>
+                <View>
+                  <Text style={styles.modernHeaderTitle}>Notifications</Text>
+                  <Text style={styles.modernHeaderSubtitle}>
+                    {notifications.length} {notifications.length > 1 ? 'nouvelles' : 'nouvelle'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.modernCloseButton} 
+                onPress={() => setNotificationModalVisible(false)}
               >
-                <Text style={styles.retryButtonText}>Réessayer</Text>
+                <Ionicons name="close-circle" size={32} color="rgba(255,255,255,0.9)" />
               </TouchableOpacity>
             </View>
-          )}
-          {isLoadingNotifications ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2E7D32" />
-              <Text style={styles.loadingText}>Chargement des notifications...</Text>
-            </View>
-          ) : notifications.length > 0 ? (
-            <FlatList
-              data={notifications}
-              keyExtractor={(item) => item.id.toString()}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
+            
+            {notifications.some(n => !n.read) && (
+              <TouchableOpacity 
+                style={styles.modernClearAllButton} 
+                onPress={markAllAsRead}
+              >
+                <Ionicons name="checkmark-done-outline" size={18} color="#fff" />
+                <Text style={styles.modernClearAllText}>Tout marquer comme lu</Text>
+              </TouchableOpacity>
+            )}
+          </LinearGradient>
+          
+          {/* Liste des notifications avec scroll */}
+          <ScrollView 
+            style={styles.modernNotificationList}
+            showsVerticalScrollIndicator={false}
+          >
+            {notificationError && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={48} color="#E53935" />
+                <Text style={styles.errorText}>{notificationError}</Text>
                 <TouchableOpacity
-                  style={[
-                    styles.notificationItem,
-                    !item.read && styles.unreadNotification,
-                  ]}
-                  onPress={() => handleNotificationPress(item)}
-                  onLongPress={() => {
-                    Alert.alert(
-                      "Supprimer la notification",
-                      "Voulez-vous supprimer cette notification ?",
-                      [
-                        { text: "Annuler", style: "cancel" },
-                        {
-                          text: "Supprimer",
-                          style: "destructive",
-                          onPress: () => deleteNotification(item.id)
-                        }
-                      ]
-                    );
-                  }}
+                  style={styles.retryButton}
+                  onPress={fetchNotifications}
                 >
-                  <View style={styles.notificationIconContainer}>
-                    <Ionicons
-                      name={
-                        item.type === 'success' ? 'checkmark-circle' :
-                        item.type === 'warning' ? 'warning' :
-                        item.type === 'error' ? 'alert-circle' :
-                        'information-circle'
-                      }
-                      size={20}
-                      color={
+                  <Text style={styles.retryButtonText}>Réessayer</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {isLoadingNotifications ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2E7D32" />
+                <Text style={styles.loadingText}>Chargement des notifications...</Text>
+              </View>
+            ) : notifications.length > 0 ? (
+              notifications.map((item) => (
+                <View key={item.id} style={styles.modernNotificationItemWrapper}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modernNotificationItem,
+                      !item.read && styles.modernUnreadNotification
+                    ]}
+                    onPress={() => handleNotificationPress(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.modernNotificationIconContainer,
+                      { backgroundColor: `${
                         item.type === 'success' ? '#4CAF50' :
                         item.type === 'warning' ? '#FF9800' :
                         item.type === 'error' ? '#E53935' :
                         '#2196F3'
-                      }
-                    />
-                  </View>
-                  <View style={styles.notificationContent}>
-                    <View style={styles.notificationHeader}>
-                      <Text style={styles.notificationTitle}>{item.title}</Text>
-                      <Text style={styles.notificationDate}>{item.date}</Text>
+                      }15` }
+                    ]}>
+                      <Ionicons 
+                        name={
+                          item.type === 'success' ? 'checkmark-circle' :
+                          item.type === 'warning' ? 'warning' :
+                          item.type === 'error' ? 'alert-circle' :
+                          'information-circle'
+                        }
+                        size={24} 
+                        color={
+                          item.type === 'success' ? '#4CAF50' :
+                          item.type === 'warning' ? '#FF9800' :
+                          item.type === 'error' ? '#E53935' :
+                          '#2196F3'
+                        }
+                      />
                     </View>
-                    <Text style={styles.notificationMessage}>{item.message}</Text>
-                    {!item.read && (
-                      <View style={styles.unreadDot} />
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.notificationAction}
-                    onPress={() => deleteNotification(item.id)}
-                  >
-                    <Ionicons name="close" size={16} color="#999" />
+                    
+                    <View style={styles.modernNotificationContent}>
+                      <View style={styles.modernNotificationTitleRow}>
+                        <Text style={styles.modernNotificationTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        {!item.read && (
+                          <View style={styles.unreadDot} />
+                        )}
+                      </View>
+                      <Text style={styles.modernNotificationMessage} numberOfLines={2}>
+                        {item.message}
+                      </Text>
+                      <View style={styles.modernNotificationFooter}>
+                        <Ionicons name="time-outline" size={12} color="#999" />
+                        <Text style={styles.modernNotificationTime}>
+                          {item.date}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <TouchableOpacity 
+                      style={styles.modernNotificationDelete}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Alert.alert(
+                          "Supprimer",
+                          "Voulez-vous supprimer cette notification ?",
+                          [
+                            { text: "Annuler", style: "cancel" },
+                            { 
+                              text: "Supprimer", 
+                              style: "destructive",
+                              onPress: () => deleteNotification(item.id)
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#999" />
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </TouchableOpacity>
-              )}
-            />
-          ) : (
-            <View style={styles.noNotifications}>
-              <Ionicons name="notifications-off-outline" size={48} color="#718096" />
-              <Text style={styles.noNotificationsText}>Aucune notification</Text>
-              <Text style={styles.noNotificationsSubtext}>
-                Vous serez notifié des mises à jour importantes ici
-              </Text>
-            </View>
-          )}
+                </View>
+              ))
+            ) : (
+              <View style={styles.modernNoNotifications}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="notifications-off-outline" size={64} color="#cbd5e0" />
+                </View>
+                <Text style={styles.modernNoNotificationsTitle}>Aucune notification</Text>
+                <Text style={styles.modernNoNotificationsSubtitle}>
+                  Vous êtes à jour ! Revenez plus tard.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -1100,7 +1148,7 @@ const fetchOrders = useCallback(async () => {
               )}
             </View>
             <View>
-              <Text style={styles.welcomeText}>{getGreeting()}</Text>
+              <Text style={styles.welcomeText}>Client</Text>
               <Text style={styles.userName}>{clientInfo.name}</Text>
             </View>
           </View>

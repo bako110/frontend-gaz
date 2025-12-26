@@ -427,7 +427,7 @@ export default function SettingsScreen() {
           colors={isDarkMode ? ['#1a1a1a', '#2d2d2d'] : ['#2E7D32', '#388E3C']}
           style={styles.header}
         >
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.push('/home/distributeurScreen')} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerText}>Paramètres</Text>

@@ -16,10 +16,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import {styles} from '@/styles/livreursettings';
+import { styles } from '@/styles/livreursettings';
 import { API_BASE_URL } from '@/service/config';
+import LivreurFooter from './LivreurFooter';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function SettingsScreen() {
+  const { isDarkMode, toggleDarkMode } = useTheme();
   const [clientInfo, setClientInfo] = useState({
     name: '',
     phone: '',
@@ -27,7 +30,6 @@ export default function SettingsScreen() {
     balance: 0,
     photo: null,
   });
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isPinModalVisible, setIsPinModalVisible] = useState(false);
   const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
   const [isKYSModalVisible, setIsKYSModalVisible] = useState(false);
@@ -75,7 +77,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
   const toggleNotifications = () => setNotificationsEnabled(!notificationsEnabled);
 
   const handleLogout = async () => {
@@ -104,21 +105,20 @@ export default function SettingsScreen() {
     try {
       setIsLoading(true);
       setError('');
-      
+
       const livreurData = await AsyncStorage.getItem('userProfile');
       if (!livreurData) {
         setError("Aucune donnée livreur trouvée");
-        // Définir le solde à 0 par défaut
         setClientInfo(prev => ({
           ...prev,
           balance: 0,
         }));
         return;
       }
-      
+
       const parsedData = JSON.parse(livreurData);
       const livreurId = parsedData.id || parsedData.user?.id;
-      
+
       if (!livreurId) {
         setError("ID livreur non trouvé");
         setClientInfo(prev => ({
@@ -128,9 +128,9 @@ export default function SettingsScreen() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/wallet/livreur/${livreurId}/balance`, {
+      const response = await fetch(`${API_BASE_URL}/wallet/${livreurId}/balance`, {
         method: 'GET',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
       });
@@ -141,9 +141,6 @@ export default function SettingsScreen() {
       }
 
       const data = await response.json();
-      console.log('Balance Livreur API Response:', data);
-
-      // Extraction robuste du solde avec valeur par défaut
       const balanceValue = data.balance?.balance || data.balance || data.data?.balance || 0;
 
       setClientInfo(prev => ({
@@ -153,7 +150,6 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error("Erreur lors de la récupération du solde livreur :", error);
       setError(error.message || "Impossible de charger le solde.");
-      // En cas d'erreur, définir le solde à 0
       setClientInfo(prev => ({
         ...prev,
         balance: 0,
@@ -170,7 +166,7 @@ export default function SettingsScreen() {
 
       const parsedData = JSON.parse(livreurData);
       const livreurId = parsedData.id || parsedData.user?.id;
-      
+
       if (!livreurId) return;
 
       const response = await fetch(`${API_BASE_URL}/auth/livreur/${livreurId}/kyc`, {
@@ -287,7 +283,7 @@ export default function SettingsScreen() {
 
     try {
       setIsSubmittingKYC(true);
-      
+
       const livreurData = await AsyncStorage.getItem('userProfile');
       if (!livreurData) {
         Alert.alert('Erreur', 'Données livreur non trouvées');
@@ -296,34 +292,28 @@ export default function SettingsScreen() {
 
       const parsedData = JSON.parse(livreurData);
       const livreurId = parsedData.id || parsedData.user?.id;
-      
+
       if (!livreurId) {
         Alert.alert('Erreur', 'ID livreur non trouvé');
         return;
       }
 
-      // Création du FormData pour l'envoi des fichiers
       const formData = new FormData();
-      
-      // Ajout du document d'identité
+
       formData.append('idDocument', {
         uri: idDocument.uri,
         type: 'image/jpeg',
         name: 'id_document.jpg'
       });
 
-      // Ajout de la photo en direct
       formData.append('livePhoto', {
         uri: livePhoto.uri,
         type: 'image/jpeg',
         name: 'live_photo.jpg'
       });
 
-      // Ajout des métadonnées
       formData.append('livreurId', livreurId);
       formData.append('submissionDate', new Date().toISOString());
-
-      console.log('Envoi KYS pour livreur:', livreurId);
 
       const response = await fetch(`${API_BASE_URL}/auth/livreur/${livreurId}/kyc`, {
         method: 'POST',
@@ -339,18 +329,15 @@ export default function SettingsScreen() {
       }
 
       const result = await response.json();
-      console.log('Réponse KYS livreur:', result);
-
       setKycStatus('en_cours');
-      
+
       Alert.alert(
         'Demande soumise',
         'Votre demande de vérification KYS a été soumise avec succès. Vous serez notifié une fois la vérification terminée.',
-        [{ 
-          text: 'OK', 
+        [{
+          text: 'OK',
           onPress: () => {
             setIsKYSModalVisible(false);
-            // Réinitialiser les documents après soumission
             setIdDocument(null);
             setLivePhoto(null);
           }
@@ -402,18 +389,6 @@ export default function SettingsScreen() {
       onPress: () => setIsKYSModalVisible(true),
     },
     {
-      id: 'orders',
-      label: 'Mes Livraisons',
-      icon: <MaterialIcons name="history" size={22} color={isDarkMode ? '#fff' : '#000'} />,
-      onPress: () => setIsOrdersModalVisible(true),
-    },
-    {
-      id: 'wallet',
-      label: 'Mon Portefeuille',
-      icon: <Ionicons name="wallet-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
-      onPress: () => setIsWalletModalVisible(true),
-    },
-    {
       id: 'language',
       label: 'Langue',
       icon: <Ionicons name="language-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
@@ -435,19 +410,21 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, isDarkMode ? styles.darkContainer : styles.lightContainer]}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
       <LinearGradient
-        colors={isDarkMode ? ['#1a1a1a', '#2d2d2d'] : ['#1976D2', '#1976D2']}
+        colors={isDarkMode ? ['#1a1a1a', '#2d2d2d'] : ['#1565C0', '#1565C0']}
         style={styles.header}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleLogout} style={[styles.logoutHeaderButton, { marginTop: 15 }]}>
+          <Ionicons name="log-out-outline" size={22} color="#fff" />
+        </TouchableOpacity>
+        <Text style={[styles.headerText, { marginTop: 30 }]}>Paramètres</Text>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { marginTop: 15 }]}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerText}>Paramètres</Text>
-        <View style={{ width: 24 }} />
       </LinearGradient>
 
-      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={[styles.profileSection, isDarkMode ? styles.darkCard : styles.lightCard]}>
             <View style={styles.avatarContainer}>
@@ -499,44 +476,22 @@ export default function SettingsScreen() {
                 thumbColor={isDarkMode ? '#f5dd4b' : '#f4f3f4'}
               />
             </View>
-            <View style={styles.switchItem}>
-              <View style={styles.switchLeft}>
-                <Ionicons name="notifications-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />
-                <Text style={[styles.switchText, isDarkMode ? styles.darkText : styles.lightText]}>
-                  Notifications
+
+            <TouchableOpacity
+              style={[styles.optionButton, isDarkMode ? styles.darkOptionButton : styles.lightOptionButton]}
+              onPress={handleChangePin}
+            >
+              <View style={styles.optionLeft}>
+                <View style={[styles.iconContainer, isDarkMode ? styles.darkIconContainer : styles.lightIconContainer]}>
+                  <MaterialIcons name="security" size={22} color={isDarkMode ? '#fff' : '#000'} />
+                </View>
+                <Text style={[styles.optionText, isDarkMode ? styles.darkText : styles.lightText]}>
+                  Changer de PIN
                 </Text>
               </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={toggleNotifications}
-                trackColor={{ false: '#767577', true: '#81b0ff' }}
-                thumbColor={notificationsEnabled ? '#f5dd4b' : '#f4f3f4'}
-              />
-            </View>
+              <Ionicons name="chevron-forward" size={20} color={isDarkMode ? '#fff' : '#666'} />
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={[styles.optionButton, isDarkMode ? styles.darkOptionButton : styles.lightOptionButton]}
-            onPress={handleChangePin}
-          >
-            <View style={styles.optionLeft}>
-              <View style={[styles.iconContainer, isDarkMode ? styles.darkIconContainer : styles.lightIconContainer]}>
-                <MaterialIcons name="security" size={22} color={isDarkMode ? '#fff' : '#000'} />
-              </View>
-              <Text style={[styles.optionText, isDarkMode ? styles.darkText : styles.lightText]}>
-                Changer de PIN
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={isDarkMode ? '#fff' : '#666'} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.logoutButton, isDarkMode ? styles.darkLogoutButton : styles.lightLogoutButton]}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={22} color="#fff" />
-            <Text style={styles.logoutText}>Déconnexion</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -667,21 +622,21 @@ export default function SettingsScreen() {
                   {getKYCStatusText()}
                 </Text>
               </View>
-              
+
               {/* Afficher le message si le statut est "en_cours" */}
               {(kycStatus === 'en_cours' || kycStatus === 'verifie') && (
                 <View style={styles.kycMessage}>
-                  <Ionicons 
-                    name={kycStatus === 'verifie' ? "checkmark-circle" : "time"} 
-                    size={32} 
-                    color={getKYCStatusColor()} 
+                  <Ionicons
+                    name={kycStatus === 'verifie' ? "checkmark-circle" : "time"}
+                    size={32}
+                    color={getKYCStatusColor()}
                   />
                   <Text style={[
                     styles.kycMessageText,
                     isDarkMode ? styles.darkText : styles.lightText
                   ]}>
-                    {kycStatus === 'verifie' 
-                      ? 'Votre identité a été vérifiée avec succès.' 
+                    {kycStatus === 'verifie'
+                      ? 'Votre identité a été vérifiée avec succès.'
                       : 'Votre demande de vérification est en cours de traitement.'}
                   </Text>
                   {kycStatus === 'en_cours' && (
@@ -699,11 +654,11 @@ export default function SettingsScreen() {
               {(kycStatus === 'non_verifie' || kycStatus === 'rejete') && (
                 <>
                   <Text style={[styles.kycDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-                    {kycStatus === 'rejete' 
+                    {kycStatus === 'rejete'
                       ? 'Votre précédente vérification a été rejetée. Veuillez soumettre à nouveau vos documents :'
                       : 'Pour compléter votre vérification KYS, veuillez fournir les documents suivants :'}
                   </Text>
-                  
+
                   <View style={styles.kycSteps}>
                     <View style={styles.kycStep}>
                       <View style={styles.stepHeader}>
@@ -738,7 +693,7 @@ export default function SettingsScreen() {
                         </Text>
                       )}
                     </View>
-                    
+
                     <View style={styles.kycStep}>
                       <View style={styles.stepHeader}>
                         <Text style={styles.stepNumber}>2</Text>
@@ -768,14 +723,14 @@ export default function SettingsScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
-                  
+
                   {/* Bouton de soumission seulement si les documents sont prêts */}
                   {idDocument && livePhoto && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[
-                        styles.submitKYCButton, 
+                        styles.submitKYCButton,
                         isSubmittingKYC && styles.submitKYCButtonDisabled
-                      ]} 
+                      ]}
                       onPress={submitKYC}
                       disabled={isSubmittingKYC}
                     >
@@ -826,18 +781,18 @@ export default function SettingsScreen() {
                 <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.walletBalance}>
               <Text style={[styles.balanceLabel, isDarkMode ? styles.darkText : styles.lightText]}>
                 Solde disponible
               </Text>
-              
+
               {isLoading ? (
                 <Text style={styles.loadingText}>Chargement du solde...</Text>
               ) : error ? (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.retryButton}
                     onPress={fetchLivreurBalance}
                   >
@@ -919,6 +874,8 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+      
+      <LivreurFooter />
     </View>
   );
 }

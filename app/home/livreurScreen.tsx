@@ -23,12 +23,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/service/config';
 import { useLivreurState } from './livreur/livreurState';
 import { useExitAlert } from '@/app/hooks/useExitAlert';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const LivreurDashboard = () => {
   // Gestion de la sortie de l'application
   useExitAlert();
 
   const router = useRouter();
+  const { isDarkMode } = useTheme();
   
   // États pour la validation par code
   const [showCodeValidation, setShowCodeValidation] = useState(false);
@@ -42,6 +44,8 @@ const LivreurDashboard = () => {
     refreshing,
     currentTime,
     todayStats,
+    yesterdayStats,
+    objectifLivraisons,
     userInfo,
     livraisons,
     weekStats,
@@ -90,7 +94,7 @@ const LivreurDashboard = () => {
     // Si l'ID contient un suffixe comme -0, -1, etc., on l'enlève
     if (orderId.includes('-')) {
       const correctedId = orderId.split('-')[0];
-      console.log('🔄 [ID_CORRECTION] ID corrigé:', { original: orderId, corrigé: correctedId });
+      console.log(' [ID_CORRECTION] ID corrigé:', { original: orderId, corrigé: correctedId });
       return correctedId;
     }
     
@@ -131,21 +135,21 @@ const LivreurDashboard = () => {
       const token = await AsyncStorage.getItem('userToken');
       const livreurId = await AsyncStorage.getItem('userId');
 
-      console.log('🔑 [VALIDATE] Token récupéré:', token ? '✓' : '✗');
-      console.log('👤 [VALIDATE] Livreur ID:', livreurId);
+      console.log(' [VALIDATE] Token récupéré:', token ? '✓' : '✗');
+      console.log(' [VALIDATE] Livreur ID:', livreurId);
 
       if (!token || !livreurId) {
         throw new Error('Session expirée. Veuillez vous reconnecter.');
       }
 
-      // 🔥 CORRECTION : Utiliser l'ID corrigé sans le suffixe -0
+      // CORRECTION : Utiliser l'ID corrigé sans le suffixe -0
       const correctedOrderId = getCorrectOrderId(selectedLivraisonForValidation.id);
       
       if (!correctedOrderId) {
         throw new Error('ID de commande invalide');
       }
 
-      console.log('📦 [VALIDATE] Données de validation:', {
+      console.log(' [VALIDATE] Données de validation:', {
         orderIdOriginal: selectedLivraisonForValidation.id,
         orderIdCorrigé: correctedOrderId,
         validationCode: validationCode,
@@ -154,18 +158,18 @@ const LivreurDashboard = () => {
 
       // Construction de l'URL avec l'ID corrigé
       const url = `${API_BASE_URL}/orders/${correctedOrderId}/validate-delivery`;
-      console.log('🌐 [VALIDATE] URL complète:', url);
-      console.log('🔧 [VALIDATE] API_BASE_URL:', API_BASE_URL);
+      console.log(' [VALIDATE] URL complète:', url);
+      console.log(' [VALIDATE] API_BASE_URL:', API_BASE_URL);
 
       const requestBody = {
         validationCode: validationCode,
         livreurId: livreurId
       };
 
-      console.log('📤 [VALIDATE] Body envoyé:', JSON.stringify(requestBody, null, 2));
+      console.log(' [VALIDATE] Body envoyé:', JSON.stringify(requestBody, null, 2));
 
       const startTime = Date.now();
-      console.log('⏰ [VALIDATE] Début de la requête...');
+      console.log(' [VALIDATE] Début de la requête...');
 
       const response = await fetch(url, {
         method: 'POST',
@@ -177,39 +181,39 @@ const LivreurDashboard = () => {
       });
 
       const endTime = Date.now();
-      console.log('⏱️ [VALIDATE] Temps de réponse:', (endTime - startTime) + 'ms');
+      console.log(' [VALIDATE] Temps de réponse:', (endTime - startTime) + 'ms');
 
       // LOGS DÉTAILLÉS DE LA RÉPONSE
-      console.log('📡 [VALIDATE] Statut HTTP:', response.status);
-      console.log('📡 [VALIDATE] OK:', response.ok);
+      console.log(' [VALIDATE] Statut HTTP:', response.status);
+      console.log(' [VALIDATE] OK:', response.ok);
 
       // Lire d'abord le texte brut pour debug
       const responseText = await response.text();
-      console.log('📡 [VALIDATE] Réponse brute:', responseText.substring(0, 500));
+      console.log(' [VALIDATE] Réponse brute:', responseText.substring(0, 500));
 
       // Vérifier si c'est du HTML (erreur)
       if (responseText.trim().startsWith('<!DOCTYPE') || responseText.includes('<html')) {
-        console.error('❌ [VALIDATE] SERVEUR RETOURNE DU HTML - Erreur de route');
+        console.error(' [VALIDATE] SERVEUR RETOURNE DU HTML - Erreur de route');
         throw new Error('Route API non trouvée - Contactez le support');
       }
 
       let data;
       try {
         data = JSON.parse(responseText);
-        console.log('✅ [VALIDATE] JSON parsé avec succès');
+        console.log(' [VALIDATE] JSON parsé avec succès');
       } catch (parseError) {
-        console.error('❌ [VALIDATE] ERREUR PARSING JSON');
+        console.error(' [VALIDATE] ERREUR PARSING JSON');
         throw new Error('Erreur de communication avec le serveur');
       }
 
       // Vérification du statut HTTP
       if (!response.ok) {
-        console.error('❌ [VALIDATE] Erreur HTTP:', response.status);
+        console.error(' [VALIDATE] Erreur HTTP:', response.status);
         throw new Error(data.message || `Erreur serveur ${response.status}`);
       }
 
       // Traitement de la réponse
-      console.log('🎯 [VALIDATE] Réponse API:', {
+      console.log(' [VALIDATE] Réponse API:', {
         success: data.success,
         codeValid: data.codeValid,
         livreurValid: data.livreurValid,
@@ -217,26 +221,26 @@ const LivreurDashboard = () => {
       });
 
       if (data.success) {
-        console.log('🎉 [VALIDATE] VALIDATION RÉUSSIE');
+        console.log(' [VALIDATE] VALIDATION RÉUSSIE');
         Alert.alert(
-          '✅ Livraison confirmée',
+          ' Livraison confirmée',
           data.message || 'La livraison a été marquée comme livrée avec succès.',
           [
             {
               text: 'OK',
               onPress: () => {
-                console.log('🔄 [VALIDATE] Rafraîchissement des données...');
+                console.log(' [VALIDATE] Rafraîchissement des données...');
                 onRefresh();
                 closeCodeValidation();
                 
                 if (data.details) {
                   setTimeout(() => {
                     Alert.alert(
-                      '💰 Paiements distribués',
+                      ' Paiements distribués',
                       `Livraison validée avec succès !\n\n` +
-                      `🚚 Votre gain: ${data.amounts?.deliveryFee?.toLocaleString() || 0} FCFA\n` +
-                      `📦 Distributeur: ${data.amounts?.productAmount?.toLocaleString() || 0} FCFA\n` +
-                      `💳 Nouveau solde: ${data.details?.livreur?.newBalance?.toLocaleString() || 0} FCFA`,
+                      ` Votre gain: ${data.amounts?.deliveryFee?.toLocaleString() || 0} FCFA\n` +
+                      ` Distributeur: ${data.amounts?.productAmount?.toLocaleString() || 0} FCFA\n` +
+                      ` Nouveau solde: ${data.details?.livreur?.newBalance?.toLocaleString() || 0} FCFA`,
                       [{ text: 'Fermer' }]
                     );
                   }, 500);
@@ -246,10 +250,10 @@ const LivreurDashboard = () => {
           ]
         );
       } else {
-        console.log('⚠️ [VALIDATE] VALIDATION ÉCHOUÉE:', data.message);
+        console.log(' [VALIDATE] VALIDATION ÉCHOUÉE:', data.message);
         if (data.codeValid === false) {
           Alert.alert(
-            '❌ Code incorrect',
+            ' Code incorrect',
             data.message || 'Le code saisi est incorrect. Veuillez réessayer.',
             [
               {
@@ -265,7 +269,7 @@ const LivreurDashboard = () => {
           );
         } else if (data.livreurValid === false) {
           Alert.alert(
-            '❌ Non autorisé',
+            ' Non autorisé',
             data.message || 'Vous n\'êtes pas assigné à cette commande.',
             [{ text: 'OK', onPress: closeCodeValidation }]
           );
@@ -275,7 +279,7 @@ const LivreurDashboard = () => {
       }
 
     } catch (error) {
-      console.error('💥 [VALIDATE] ERREUR:', error);
+      console.error(' [VALIDATE] ERREUR:', error);
       
       let errorMessage = error.message;
       if (error.message.includes('Route API non trouvée')) {
@@ -291,7 +295,7 @@ const LivreurDashboard = () => {
         ]
       );
     } finally {
-      console.log('🏁 [VALIDATE] Validation terminée');
+      console.log(' [VALIDATE] Validation terminée');
       setIsValidating(false);
     }
   };
@@ -480,7 +484,7 @@ const LivreurDashboard = () => {
       );
     }
 
-    // ✅ Afficher les 7 jours de la semaine avec tous les données
+    // Afficher les 7 jours de la semaine avec tous les données
     const maxLivraisons = Math.max(...weekStats.map(s => s?.livraisons || 0), 1);
     
     return (
@@ -586,7 +590,7 @@ const LivreurDashboard = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
-      <LinearGradient colors={['#1565C0', '#1976D2']} style={styles.header}>
+      <LinearGradient colors={['#1565C0', '#1565C0']} style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <View style={styles.profileImage}>
@@ -597,7 +601,7 @@ const LivreurDashboard = () => {
               )}
             </View>
             <View>
-              <Text style={styles.welcomeText}>{getGreeting()}</Text>
+              <Text style={styles.welcomeText}>Livreur</Text>
               <Text style={styles.userName}>{userInfo.name}</Text>
             </View>
           </View>
@@ -620,38 +624,127 @@ const LivreurDashboard = () => {
         </Text>
       </LinearGradient>
 
-      {/* Modal des notifications */}
-      <Modal visible={showNotifications} transparent animationType="fade" onRequestClose={closeNotifications}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeNotifications}>
-          <View style={styles.notificationPanel}>
-            <View style={styles.notificationHeaderPanel}>
-              <Text style={styles.notificationPanelTitle}>Notifications ({notifications.length})</Text>
-              <View style={styles.notificationHeaderActions}>
-                {notifications.length > 0 && (
-                  <TouchableOpacity style={styles.clearAllButton} onPress={clearAllNotifications}>
-                    <Text style={styles.clearAllText}>Tout effacer</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.closeNotificationButton} onPress={closeNotifications}>
-                  <Ionicons name="close" size={24} color="#666" />
+      {/* Modal des notifications - Design Moderne */}
+      <Modal visible={showNotifications} transparent animationType="slide" onRequestClose={closeNotifications}>
+        <View style={styles.modernModalOverlay}>
+          <TouchableOpacity 
+            style={styles.modernModalBackdrop} 
+            activeOpacity={1} 
+            onPress={closeNotifications}
+          />
+          <View style={styles.modernNotificationPanel}>
+            {/* Header moderne avec gradient */}
+            <LinearGradient
+              colors={['#1565C0', '#1976D2']}
+              style={styles.modernNotificationHeader}
+            >
+              <View style={styles.modernHeaderContent}>
+                <View style={styles.modernHeaderLeft}>
+                  <View style={styles.notificationIconBadge}>
+                    <Ionicons name="notifications" size={24} color="#fff" />
+                  </View>
+                  <View>
+                    <Text style={styles.modernHeaderTitle}>Notifications</Text>
+                    <Text style={styles.modernHeaderSubtitle}>
+                      {notifications.length} {notifications.length > 1 ? 'nouvelles' : 'nouvelle'}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.modernCloseButton} 
+                  onPress={closeNotifications}
+                >
+                  <Ionicons name="close-circle" size={32} color="rgba(255,255,255,0.9)" />
                 </TouchableOpacity>
               </View>
-            </View>
+              
+              {notifications.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.modernClearAllButton} 
+                  onPress={clearAllNotifications}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#fff" />
+                  <Text style={styles.modernClearAllText}>Tout effacer</Text>
+                </TouchableOpacity>
+              )}
+            </LinearGradient>
             
-            <ScrollView style={styles.notificationList}>
+            {/* Liste des notifications avec scroll */}
+            <ScrollView 
+              style={styles.modernNotificationList}
+              showsVerticalScrollIndicator={false}
+            >
               {notifications.length > 0 ? (
-                notifications.map((notification) => (
-                  <NotificationItem key={notification.id} notification={notification} />
+                notifications.map((notification, index) => (
+                  <View key={notification.id} style={styles.modernNotificationItemWrapper}>
+                    <TouchableOpacity
+                      style={[
+                        styles.modernNotificationItem,
+                        !notification.read && styles.modernUnreadNotification
+                      ]}
+                      onPress={async () => {
+                        await markAsRead(notification.id);
+                        handleNotificationPress(notification);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.modernNotificationIconContainer,
+                        { backgroundColor: `${getNotificationColor(notification.type)}15` }
+                      ]}>
+                        <Ionicons 
+                          name={getNotificationIcon(notification.type)} 
+                          size={24} 
+                          color={getNotificationColor(notification.type)} 
+                        />
+                      </View>
+                      
+                      <View style={styles.modernNotificationContent}>
+                        <View style={styles.modernNotificationTitleRow}>
+                          <Text style={styles.modernNotificationTitle} numberOfLines={1}>
+                            {notification.title}
+                          </Text>
+                          {!notification.read && (
+                            <View style={styles.unreadDot} />
+                          )}
+                        </View>
+                        <Text style={styles.modernNotificationMessage} numberOfLines={2}>
+                          {notification.message}
+                        </Text>
+                        <View style={styles.modernNotificationFooter}>
+                          <Ionicons name="time-outline" size={12} color="#999" />
+                          <Text style={styles.modernNotificationTime}>
+                            {notification.date || formatRelativeTime(notification.timestamp)}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      <TouchableOpacity 
+                        style={styles.modernNotificationDelete}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNotification(notification.id);
+                        }}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#999" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  </View>
                 ))
               ) : (
-                <View style={styles.noNotifications}>
-                  <Ionicons name="notifications-off-outline" size={48} color="#ccc" />
-                  <Text style={styles.noNotificationsText}>Aucune notification</Text>
+                <View style={styles.modernNoNotifications}>
+                  <View style={styles.emptyStateIcon}>
+                    <Ionicons name="notifications-off-outline" size={64} color="#cbd5e0" />
+                  </View>
+                  <Text style={styles.modernNoNotificationsTitle}>Aucune notification</Text>
+                  <Text style={styles.modernNoNotificationsSubtitle}>
+                    Vous êtes à jour ! Revenez plus tard.
+                  </Text>
                 </View>
               )}
             </ScrollView>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Modal de validation par code */}
@@ -769,14 +862,34 @@ const LivreurDashboard = () => {
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1565C0']} tintColor="#1565C0" />} showsVerticalScrollIndicator={false}>
         <View style={styles.statsContainer}>
-          <StatCard icon="car-outline" title="Livraisons aujourd'hui" value={todayStats.livraisons?.toString() || '0'} subtitle="Objectif: 12" color="#1565C0" />
-          <StatCard icon="cash-outline" title="Revenus du jour" value={formatCurrency(todayStats.revenus)} subtitle="+12% vs hier" color="#4CAF50" />
+          <StatCard 
+            icon="car-outline" 
+            title="Livraisons aujourd'hui" 
+            value={todayStats.livraisons?.toString() || '0'} 
+            subtitle={`Objectif: ${objectifLivraisons}`} 
+            color="#1565C0" 
+          />
+          <StatCard 
+            icon="cash-outline" 
+            title="Revenus du jour" 
+            value={formatCurrency(todayStats.revenus)} 
+            subtitle={(() => {
+              if (yesterdayStats.revenus === 0) return 'Pas de comparaison';
+              const diff = todayStats.revenus - yesterdayStats.revenus;
+              const percentage = ((diff / yesterdayStats.revenus) * 100).toFixed(1);
+              const sign = diff >= 0 ? '+' : '';
+              return `${sign}${percentage}% vs hier`;
+            })()} 
+            color="#4CAF50" 
+          />
         </View>
         <WeekChart />
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Livraisons du jour</Text>
-            <TouchableOpacity><Text style={styles.sectionAction}>Voir tout</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/home/livreur/historique')}>
+              <Text style={styles.sectionAction}>Voir tout</Text>
+            </TouchableOpacity>
           </View>
           <LivraisonsSection />
         </View>

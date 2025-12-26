@@ -194,8 +194,9 @@ export default function NewOrderScreen() {
       return;
     }
     
-    // Si l'action nécessite une validation de code (accept ou validate_pickup)
-    if (action === 'accept' || action === 'validate_pickup') {
+    // ✅ CORRECTION: Le code n'est demandé QUE pour validate_pickup (confirmation finale)
+    // Pour 'accept', on accepte directement SANS code
+    if (action === 'validate_pickup') {
       setSelectedOrder(order);
       setSelectedAction(action);
       setValidationCode('');
@@ -203,7 +204,7 @@ export default function NewOrderScreen() {
       setValidationSuccess(false);
       setValidationModalVisible(true);
     } else {
-      // Pour les autres actions (assign, cancel)
+      // Pour les autres actions (accept, assign, cancel)
       setSelectedOrder(order);
       setSelectedAction(action);
       setSelectedDriver(null);
@@ -263,42 +264,11 @@ export default function NewOrderScreen() {
       const distributorId = await getDistributorId();
       const orderId = selectedOrder._id;
       const isDeliveryOrder = selectedOrder.isDelivery === true;
-      const isPendingOrder = selectedOrder.status === 'nouveau';
 
-      // ✅ Si c'est une nouvelle commande, juste l'accepter d'abord
-      if (isPendingOrder) {
-        console.log('📋 Acceptation de la commande (SANS code)...');
-        const confirmResponse = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            status: 'confirme',
-            distributorId: distributorId,
-          }),
-        });
-
-        if (!confirmResponse.ok) {
-          setValidationError('Impossible d\'accepter la commande');
-          return;
-        }
-
-        // ✅ Commande acceptée, l'utilisateur peut entrer le code pour la confirmer
-        setValidationSuccess(true);
-        Alert.alert('Succès', '✅ Commande acceptée!\n\nVeuillez entrer le code pour la confirmer et recevoir le paiement.');
-        setPendingOrders(prev => prev.filter(o => o._id !== orderId));
-        setConfirmedOrders(prev => [...prev, { 
-          ...selectedOrder, 
-          status: 'confirme',
-          validated: false 
-        }]);
-        setShowValidationModal(false);
-        return;
-      }
-
-      // ✅ Si c'est une commande déjà acceptée (confirme), valider avec le CODE
-      console.log('🔐 Validation avec le code...');
+      // ✅ CORRECTION: Cette fonction ne valide QUE les commandes confirmées avec le CODE
+      // Les nouvelles commandes sont acceptées via confirmOrderAction() SANS code
+      console.log('🔐 Validation avec le code pour commande confirmée...');
+      
       const endpoint = isDeliveryOrder 
         ? `/orders/${orderId}/validate-delivery`
         : `/orders/${orderId}/complete-pickup`;
@@ -421,6 +391,14 @@ export default function NewOrderScreen() {
       const isDeliveryOrder = selectedOrder.isDelivery === true;
 
       switch (selectedAction) {
+        case 'accept':
+          // Accepter la commande SANS code
+          newStatus = 'confirme';
+          await updateOrderStatus(orderId, newStatus);
+          setPendingOrders(prev => prev.filter((o) => o._id !== orderId));
+          setConfirmedOrders(prev => [...prev, { ...selectedOrder, status: newStatus }]);
+          break;
+
         case 'assign':
           // Assigner un livreur (UNIQUEMENT pour les livraisons)
           if (!isDeliveryOrder) {
@@ -678,12 +656,12 @@ export default function NewOrderScreen() {
   const getValidationInstructions = () => {
     if (!selectedOrder) return '';
     
-    if (selectedOrder.status === 'nouveau') {
-      return 'Entrez le code de validation pour accepter la commande.\nLe code vous sera versé après validation.';
-    } else if (selectedOrder.isDelivery) {
+    // ✅ Cette fonction n'est appelée QUE pour les commandes confirmées
+    // Les nouvelles commandes sont acceptées via le modal d'action SANS code
+    if (selectedOrder.isDelivery) {
       return 'Entrez le code de validation fourni par le client pour finaliser la livraison.';
     } else {
-      return 'Entrez le code de validation fourni par le client pour valider le retrait.';
+      return 'Entrez le code de validation fourni par le client pour valider le retrait sur place.';
     }
   };
 

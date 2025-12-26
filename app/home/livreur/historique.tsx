@@ -20,11 +20,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '@/service/config';
 import LivreurFooter from './LivreurFooter';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
 const HistoryScreen = () => {
   const router = useRouter();
+  const { isDarkMode } = useTheme();
   const [commandes, setCommandes] = useState([]);
   const [filteredCommandes, setFilteredCommandes] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -647,7 +649,7 @@ const HistoryScreen = () => {
   // Composant HistoryCard
   const HistoryCard = ({ commande }) => (
     <TouchableOpacity
-      style={styles.historyCard}
+      style={[styles.historyCard, isDarkMode && { backgroundColor: '#2d2d2d', borderColor: '#444' }]}
       onPress={() => {
         setSelectedCommande(commande);
         setModalVisible(true);
@@ -655,7 +657,7 @@ const HistoryScreen = () => {
       activeOpacity={0.7}
     >
       <View style={styles.historyHeader}>
-        <Text style={styles.historyId}>#{commande.id}</Text>
+        <Text style={[styles.historyId, isDarkMode && { color: '#fff' }]}>#{commande.id}</Text>
         <View style={[styles.statutBadge, { backgroundColor: `${getStatutColor(commande.statut)}20` }]}>
           <Ionicons
             name={getStatutIcon(commande.statut)}
@@ -715,9 +717,9 @@ const HistoryScreen = () => {
   ];
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
-      <LinearGradient colors={['#1565C0', '#1565C0']} style={styles.header}>
+    <View style={[styles.container, isDarkMode && { backgroundColor: '#121212' }]}>
+      <StatusBar barStyle="light-content" backgroundColor={isDarkMode ? '#1a1a1a' : '#1565C0'} />
+      <LinearGradient colors={isDarkMode ? ['#1a1a1a', '#2d2d2d'] : ['#1565C0', '#1565C0']} style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
@@ -726,18 +728,18 @@ const HistoryScreen = () => {
 
       {/* Barre de recherche */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={20} color="#718096" style={styles.searchIcon} />
+        <View style={[styles.searchBar, isDarkMode && { backgroundColor: '#2d2d2d', borderColor: '#444' }]}>
+          <Ionicons name="search-outline" size={20} color={isDarkMode ? '#aaa' : '#718096'} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, isDarkMode && { color: '#fff' }]}
             placeholder="Rechercher une commande..."
-            placeholderTextColor="#A0AEC0"
+            placeholderTextColor={isDarkMode ? '#666' : '#A0AEC0'}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#718096" />
+              <Ionicons name="close-circle" size={20} color={isDarkMode ? '#aaa' : '#718096'} />
             </TouchableOpacity>
           )}
         </View>
@@ -1079,6 +1081,7 @@ const HistoryScreen = () => {
           </View>
         </View>
       </Modal>
+      <LivreurFooter />
     </View>
   );
 };

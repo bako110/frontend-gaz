@@ -299,12 +299,12 @@ export default function RegisterScreen() {
   return (
     <ScrollView contentContainerStyle={regstersStyles.userTypeContainer}>
       <View style={regstersStyles.logoContainer}>
-        <Image source={require('@/assets/images/express-gaz.png')} style={regstersStyles.logo} />
+        <Image source={require('@/assets/images/express-gaz.png')} style={[regstersStyles.logo, { width: 140, height: 140, borderRadius: 30 }]} />
       </View>
 
       <View style={regstersStyles.titleContainer}>
-        <Text style={regstersStyles.mainTitle}>Bienvenue !</Text>
-        <Text style={regstersStyles.subtitle}>
+        <Text style={[regstersStyles.mainTitle, { color: '#2D3748' }]}>Bienvenue !</Text>
+        <Text style={[regstersStyles.subtitle, { color: '#718096' }]}>
           Sélectionnez votre profil pour commencer
         </Text>
       </View>
@@ -332,7 +332,7 @@ export default function RegisterScreen() {
 
       {/* NOUVEAU BOUTON DE CONNEXION */}
       <View style={regstersStyles.loginRedirectContainer}>
-        <Text style={regstersStyles.loginRedirectText}>
+        <Text style={[regstersStyles.loginRedirectText, { color: '#718096' }]}>
           Vous avez déjà un compte ?
         </Text>
         <TouchableOpacity
@@ -353,16 +353,21 @@ export default function RegisterScreen() {
 
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <StatusBar barStyle="light-content" backgroundColor={getGradientColors()[0]} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: step === 0 ? '#FFFFFF' : getGradientColors()[0] }}>
+      <StatusBar 
+        barStyle={step === 0 ? 'dark-content' : 'light-content'} 
+        backgroundColor={step === 0 ? '#FFFFFF' : getGradientColors()[0]} 
+      />
       <KeyboardAvoidingView
         style={regstersStyles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <LinearGradient colors={getGradientColors()} style={regstersStyles.container}>
-          {step === 0 ? (
-            renderUserTypeSelection()
-          ) : (
+        {step === 0 ? (
+          <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+            {renderUserTypeSelection()}
+          </View>
+        ) : (
+          <LinearGradient colors={getGradientColors()} style={regstersStyles.container}>
             <ScrollView 
               contentContainerStyle={regstersStyles.scrollContent}
               keyboardShouldPersistTaps="handled"
@@ -554,8 +559,8 @@ export default function RegisterScreen() {
                 )}
               </View>
             </ScrollView>
-          )}
-        </LinearGradient>
+          </LinearGradient>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

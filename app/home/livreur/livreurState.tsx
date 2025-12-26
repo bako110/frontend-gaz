@@ -14,6 +14,11 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
     kmParcourus: 0,
     tempsMoyen: 0,
   });
+  const [yesterdayStats, setYesterdayStats] = useState({
+    livraisons: 0,
+    revenus: 0,
+  });
+  const [objectifLivraisons, setObjectifLivraisons] = useState(12);
   const [userInfo, setUserInfo] = useState({
     name: '',
     phone: '',
@@ -43,7 +48,7 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
     notifications,
     loading: notificationsLoading,
     error: notificationsError,
-    userId,
+    clientId: userId, // Ajouter userId manquant
     fetchNotifications,
     markAsRead,
     markAllAsRead,
@@ -316,6 +321,17 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
             });
           }
 
+          if (stats?.yesterday) {
+            setYesterdayStats({
+              livraisons: stats.yesterday.livraisons || 0,
+              revenus: stats.yesterday.revenus || 0,
+            });
+          }
+
+          if (stats?.objectif) {
+            setObjectifLivraisons(stats.objectif || 12);
+          }
+
           const livraisonsData = todaysDeliveries || deliveryHistory || [];
           
           const formattedLivraisons = livraisonsData.map((livraison, index) => ({
@@ -335,9 +351,9 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
           const organizedLivraisons = organizeLivraisons(formattedLivraisons);
           setLivraisons(organizedLivraisons);
           setWeekStats(stats?.week || []);
-        }
 
-        await fetchNotifications();
+          await fetchNotifications();
+        }
       } catch (error) {
         console.error('Erreur lors de la récupération des données :', error);
         Alert.alert(
@@ -393,6 +409,17 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
             kmParcourus: stats.today.kmParcourus || 0,
             tempsMoyen: stats.today.tempsMoyen || 0,
           });
+        }
+
+        if (stats?.yesterday) {
+          setYesterdayStats({
+            livraisons: stats.yesterday.livraisons || 0,
+            revenus: stats.yesterday.revenus || 0,
+          });
+        }
+
+        if (stats?.objectif) {
+          setObjectifLivraisons(stats.objectif || 12);
         }
         
         const livraisonsData = todaysDeliveries || deliveryHistory || [];
@@ -713,6 +740,8 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
     refreshing,
     currentTime,
     todayStats,
+    yesterdayStats,
+    objectifLivraisons,
     userInfo,
     livraisons,
     weekStats,

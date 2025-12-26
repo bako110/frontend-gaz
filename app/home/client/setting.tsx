@@ -387,18 +387,18 @@ export default function SettingsScreen() {
       icon: <MaterialIcons name="verified-user" size={22} color={isDarkMode ? '#fff' : '#000'} />,
       onPress: () => setIsKYSModalVisible(true),
     },
-    {
-      id: 'orders',
-      label: 'Mes Commandes',
-      icon: <MaterialIcons name="history" size={22} color={isDarkMode ? '#fff' : '#000'} />,
-      onPress: () => router.push('/home/client/historique'),
-    },
-    {
-      id: 'wallet',
-      label: 'Mon Portefeuille',
-      icon: <Ionicons name="wallet-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
-      onPress: () => setIsWalletModalVisible(true),
-    },
+    // {
+    //   id: 'orders',
+    //   label: 'Mes Commandes',
+    //   icon: <MaterialIcons name="history" size={22} color={isDarkMode ? '#fff' : '#000'} />,
+    //   onPress: () => router.push('/home/client/historique'),
+    // },
+    // {
+    //   id: 'wallet',
+    //   label: 'Mon Portefeuille',
+    //   icon: <Ionicons name="wallet-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
+    //   onPress: () => setIsWalletModalVisible(true),
+    // },
     {
       id: 'language',
       label: 'Langue',

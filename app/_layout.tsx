@@ -2,6 +2,7 @@ import { Slot, useRouter, usePathname } from 'expo-router';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Appearance, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 export default function RootLayout() {
   // ========================================
@@ -110,5 +111,9 @@ export default function RootLayout() {
   // ========================================
   // RENDER
   // ========================================
-  return <Slot />;
+  return (
+    <ThemeProvider>
+      <Slot />
+    </ThemeProvider>
+  );
 }

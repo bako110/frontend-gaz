@@ -1,25 +1,38 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { View, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname, useSegments } from 'expo-router';
 import livreurStyles from '@/styles/livreur';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const LivreurFooter = () => {
   const router = useRouter();
+  const pathname = usePathname();
+  const segments = useSegments();
   const [activeTab, setActiveTab] = React.useState('home');
+  const { isDarkMode } = useTheme();
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Déterminer l'onglet actif basé sur la route actuelle
-    const determineActiveTab = async () => {
-      const currentPath = router.pathname;
-      if (currentPath.includes('wallet')) setActiveTab('wallet');
-      else if (currentPath.includes('historique')) setActiveTab('history');
-      else if (currentPath.includes('settings')) setActiveTab('settings');
-      else setActiveTab('home');
-    };
-    determineActiveTab();
-  }, [router.pathname]);
+    const currentPath = pathname || '';
+    const lastSegment = segments[segments.length - 1] || '';
+    
+    console.log('📍 Current path:', currentPath);
+    console.log('📍 Segments:', segments);
+    console.log('📍 Last segment:', lastSegment);
+    
+    if (currentPath.includes('/wallet') || lastSegment === 'wallet') {
+      setActiveTab('wallet');
+    } else if (currentPath.includes('/historique') || lastSegment === 'historique') {
+      setActiveTab('history');
+    } else if (currentPath.includes('/settings') || lastSegment === 'settings') {
+      setActiveTab('settings');
+    } else if (currentPath.includes('/livreurScreen') || lastSegment === 'livreurScreen') {
+      setActiveTab('home');
+    } else {
+      setActiveTab('home');
+    }
+  }, [pathname, segments]);
 
   const handleTabPress = useCallback((tab) => {
     setActiveTab(tab);
@@ -42,7 +55,7 @@ const LivreurFooter = () => {
   }, [router]);
 
   return (
-    <View style={livreurStyles.footer}>
+    <View style={[livreurStyles.footer, isDarkMode && { backgroundColor: '#1a1a1a', borderTopColor: '#333' }]}>
       {[
         { key: 'home', icon: 'home-outline', label: 'Accueil' },
         { key: 'wallet', icon: 'wallet-outline', label: 'Wallet' },
@@ -54,8 +67,8 @@ const LivreurFooter = () => {
           style={[livreurStyles.footerTab, activeTab === tab.key && livreurStyles.activeTab]}
           onPress={() => handleTabPress(tab.key)}
         >
-          <Ionicons name={tab.icon} size={24} color={activeTab === tab.key ? '#1565C0' : '#718096'} />
-          <Text style={[livreurStyles.footerTabText, activeTab === tab.key && livreurStyles.activeTabText]}>
+          <Ionicons name={tab.icon} size={24} color={activeTab === tab.key ? '#1565C0' : (isDarkMode ? '#aaa' : '#718096')} />
+          <Text style={[livreurStyles.footerTabText, activeTab === tab.key && livreurStyles.activeTabText, isDarkMode && !activeTab && { color: '#aaa' }]}>
             {tab.label}
           </Text>
         </TouchableOpacity>
