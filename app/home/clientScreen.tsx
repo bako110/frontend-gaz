@@ -27,6 +27,7 @@ import SearchSystem from './client/SearchSystem';
 import OrderModal from './client/ordermodal'; // Import du nouveau composant modal
 import ClientFooter from './client/ClientFooter'; // Import du footer partagé
 import { useExitAlert } from '@/app/hooks/useExitAlert';
+import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
 
 const { width, height } = Dimensions.get('window');
 
@@ -294,6 +295,8 @@ const fetchOrders = useCallback(async () => {
         // Formater les commandes en cours
         const formattedEnCours = commandesEnCoursData.map((order) => ({
           id: order._id,
+          orderId: generateOrderId(order._id),
+          orderNumber: generateOrderNumber(order._id),
           produit: order.products && order.products.length > 0
             ? `${order.products[0].name} (${order.products[0].fuelType || 'Standard'})`
             : 'Produit inconnu',
@@ -320,6 +323,8 @@ const fetchOrders = useCallback(async () => {
         
         const formattedHistorique = sortedHistorique.map((order) => ({
           id: order._id,
+          orderId: generateOrderId(order._id),
+          orderNumber: generateOrderNumber(order._id),
           date: order.orderTime ? new Date(order.orderTime).toLocaleString('fr-FR') : 'Date inconnue',
           orderTime: order.orderTime || order.date,
           produit: order.products && order.products.length > 0
@@ -774,7 +779,7 @@ const fetchOrders = useCallback(async () => {
   const CommandeCard = ({ commande }) => (
     <TouchableOpacity style={styles.commandeCard} activeOpacity={0.8}>
       <View style={styles.commandeHeader}>
-        <Text style={styles.commandeId}>#{commande.id}</Text>
+        <Text style={styles.commandeId}>{commande.orderId}</Text>
         <View style={[styles.statutBadge, { backgroundColor: getStatutColor(commande.statut) + '20' }]}>
           <Ionicons name={getStatutIcon(commande.statut)} size={16} color={getStatutColor(commande.statut)} />
           <Text style={[styles.statutText, { color: getStatutColor(commande.statut) }]}>
@@ -818,6 +823,7 @@ const fetchOrders = useCallback(async () => {
     <View style={styles.historyCard}>
       <View style={styles.historyCardTop}>
         <View style={styles.historyCardLeft}>
+          <Text style={styles.historyOrderId}>{commande.orderId}</Text>
           <Text style={styles.historyProduct}>{commande.produit}</Text>
           <Text style={styles.historyDate}>{commande.date}</Text>
         </View>

@@ -431,7 +431,9 @@ export default function SettingsScreen() {
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerText}>Paramètres</Text>
-          <View style={{ width: 24 }} />
+          <TouchableOpacity onPress={handleLogout} style={styles.backButton}>
+            <Ionicons name="log-out-outline" size={24} color="#fff" />
+          </TouchableOpacity>
         </LinearGradient>
 
         <ScrollView style={[styles.scrollContent, { paddingBottom: 20 }]} showsVerticalScrollIndicator={false}>
@@ -486,7 +488,7 @@ export default function SettingsScreen() {
                 thumbColor={isDarkMode ? '#f5dd4b' : '#f4f3f4'}
               />
             </View>
-            <View style={styles.switchItem}>
+            {/* <View style={styles.switchItem}>
               <View style={styles.switchLeft}>
                 <Ionicons name="notifications-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />
                 <Text style={[styles.switchText, isDarkMode ? styles.darkText : styles.lightText]}>
@@ -499,7 +501,7 @@ export default function SettingsScreen() {
                 trackColor={{ false: '#767577', true: '#81b0ff' }}
                 thumbColor={notificationsEnabled ? '#f5dd4b' : '#f4f3f4'}
               />
-            </View>
+            </View> */}
           </View>
 
           <TouchableOpacity
@@ -515,14 +517,6 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={isDarkMode ? '#fff' : '#666'} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.logoutButton, isDarkMode ? styles.darkLogoutButton : styles.lightLogoutButton]}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={22} color="#fff" />
-            <Text style={styles.logoutText}>Déconnexion</Text>
           </TouchableOpacity>
         </View>
         </ScrollView>

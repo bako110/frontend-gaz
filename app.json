@@ -18,7 +18,8 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/express-gaz.png",
-        "backgroundColor": "#1a1a2e"
+        "backgroundColor": "#FFFFFF",
+        "monochromeImage": "./assets/images/express-gaz.png"
       },
       "package": "com.robert10.ExpressGaz",
       "permissions": [
@@ -36,7 +37,8 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/express-gaz.png",
-          "backgroundColor": "#1a1a2e"
+          "backgroundColor": "#FFFFFF",
+          "resizeMode": "contain"
         }
       ],
       [

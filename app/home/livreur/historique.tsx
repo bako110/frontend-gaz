@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '@/service/config';
 import LivreurFooter from './LivreurFooter';
 import { useTheme } from '@/contexts/ThemeContext';
+import { generateOrderId } from '@/utils/orderUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -657,7 +658,7 @@ const HistoryScreen = () => {
       activeOpacity={0.7}
     >
       <View style={styles.historyHeader}>
-        <Text style={[styles.historyId, isDarkMode && { color: '#fff' }]}>#{commande.id}</Text>
+        <Text style={[styles.historyId, isDarkMode && { color: '#fff' }]}>{generateOrderId(getCorrectOrderId(commande.id) || commande.id)}</Text>
         <View style={[styles.statutBadge, { backgroundColor: `${getStatutColor(commande.statut)}20` }]}>
           <Ionicons
             name={getStatutIcon(commande.statut)}
@@ -836,7 +837,7 @@ const HistoryScreen = () => {
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <View style={styles.modalDetailRow}>
                     <Text style={styles.modalDetailLabel}>ID Commande:</Text>
-                    <Text style={styles.modalDetailValue}>#{selectedCommande.id}</Text>
+                    <Text style={styles.modalDetailValue}>{generateOrderId(getCorrectOrderId(selectedCommande.id) || selectedCommande.id)}</Text>
                   </View>
                   <View style={styles.modalDetailRow}>
                     <Text style={styles.modalDetailLabel}>Date:</Text>

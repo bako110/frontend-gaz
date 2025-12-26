@@ -53,11 +53,12 @@ const regstersStyles = {
   contentCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 30,
+    paddingBottom: 30,
     marginTop: 15,
     marginBottom: 20,
-    minHeight: 400,
+    minHeight: 500,
   },
   cardHeader: {
     alignItems: 'center',

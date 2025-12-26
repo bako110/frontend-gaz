@@ -27,6 +27,7 @@ import AddressInput from './distributeur/geolocalisation';
 import DistributorFooter from './distributeur/DistributorFooter';
 import { API_BASE_URL } from '@/service/config';
 import { useExitAlert } from '@/app/hooks/useExitAlert';
+import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
 
 const { width, height } = Dimensions.get('window');
 
@@ -124,6 +125,8 @@ const GAS_TYPES_CONFIG = {
 // Types pour les états
 interface Order {
   _id: string;
+  orderId?: string;
+  orderNumber?: string;
   clientName: string;
   clientPhone: string;
   address: string;
@@ -797,6 +800,8 @@ export default function DistributorDashboard() {
       
       const formatOrder = (order: any): Order => ({
         _id: order._id,
+        orderId: generateOrderId(order._id),
+        orderNumber: generateOrderNumber(order._id),
         clientName: order.clientName,
         clientPhone: order.clientPhone,
         address: order.address || 'Adresse non définie',
@@ -926,15 +931,16 @@ export default function DistributorDashboard() {
   // RAFRAÎCHISSEMENT AUTOMATIQUE TOUTES LES 30 SECONDES
   useEffect(() => {
     if (distributorId) {
-      console.log("⏰ Mise en place du rafraîchissement automatique des notifications");
-      const notificationInterval = setInterval(() => {
-        console.log("🔄 Rafraîchissement automatique des notifications");
+      console.log("⏰ Mise en place du rafraîchissement automatique des notifications et commandes");
+      const autoRefreshInterval = setInterval(() => {
+        console.log("🔄 Rafraîchissement automatique des notifications et commandes");
         fetchNotifications();
+        fetchAllOrders(distributorId); // ⬅️ RAFRAÎCHIR AUSSI LES COMMANDES
       }, 30000); // 30 secondes
       
       return () => {
         console.log("🧹 Nettoyage de l'intervalle de rafraîchissement");
-        clearInterval(notificationInterval);
+        clearInterval(autoRefreshInterval);
       };
     }
   }, [distributorId]);
@@ -973,7 +979,6 @@ export default function DistributorDashboard() {
     try {
       switch (action) {
         case 'accept':
-          // ✅ Étape 1: ACCEPTER (confirmer le statut SANS code)
           if (!distributorId) {
             Alert.alert('Erreur', 'ID distributeur manquant');
             return;
@@ -1002,7 +1007,6 @@ export default function DistributorDashboard() {
           break;
 
         case 'confirm':
-          // ✅ Étape 2: CONFIRMER (valider avec le CODE et recevoir l'argent)
           handleOpenValidationModal(order);
           break;
 
@@ -1010,25 +1014,64 @@ export default function DistributorDashboard() {
           setSelectedOrder(order);
           setOrderModalVisible(true);
           break;
+
         case 'reject':
           Alert.alert(
-            'Rejeter la commande',
-            `Êtes-vous sûr de vouloir rejeter cette commande ?`,
+            'Annuler la commande',
+            `Êtes-vous sûr de vouloir annuler cette commande ?\n\n⚠️ Le client sera remboursé intégralement : ${order.total?.toLocaleString() || 0} FCFA`,
             [
-              { text: 'Annuler', style: 'cancel' },
+              { text: 'Non', style: 'cancel' },
               {
-                text: 'Rejeter',
+                text: 'Oui, annuler',
                 style: 'destructive',
                 onPress: async () => {
-                  await updateOrderStatus(order._id, ORDER_STATUS.CANCELLED);
-                  if (distributorId) {
-                    await fetchAllOrders(distributorId);
+                  try {
+                    if (!distributorId) {
+                      Alert.alert('Erreur', 'ID distributeur manquant');
+                      return;
+                    }
+
+                    const response = await fetch(`${API_BASE_URL}/orders/${order._id}/status`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        distributorId: distributorId,
+                        status: 'annule'
+                      }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                      Alert.alert(
+                        '✅ Commande annulée',
+                        `Client remboursé: ${data.refundAmount?.toLocaleString() || order.total?.toLocaleString() || 0} FCFA`,
+                        [
+                          {
+                            text: 'OK',
+                            onPress: async () => {
+                              if (distributorId) {
+                                await fetchAllOrders(distributorId);
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    } else {
+                      Alert.alert('Erreur', data.message || 'Impossible d\'annuler la commande');
+                    }
+                  } catch (error) {
+                    console.error('Erreur annulation:', error);
+                    Alert.alert('Erreur', 'Une erreur est survenue lors de l\'annulation');
                   }
                 },
               },
             ]
           );
           break;
+
         case 'complete':
           await updateOrderStatus(order._id, ORDER_STATUS.COMPLETED);
           Alert.alert('Succès', 'Commande marquée comme livrée.');
@@ -1036,82 +1079,12 @@ export default function DistributorDashboard() {
             await fetchAllOrders(distributorId);
           }
           break;
+
         default:
           break;
       }
     } catch (error) {
       Alert.alert("Erreur", error instanceof Error ? error.message : "Impossible de traiter la commande.");
-    }
-  };
-
-  // Envoyer les données d'assignation du livreur au backend
-  const sendDriverAssignmentData = async (order: Order, driver: Driver) => {
-    try {
-      if (!distributorId) {
-        throw new Error('ID distributeur manquant');
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/distributeurs/orders/assign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          distributorId,
-          orderId: order._id,
-          driverId: driver._id,
-          driverName: driver.user?.name || "Inconnu",
-          driverPhone: driver.user?.phone || "Non fourni",
-          clientName: order.clientName || "Inconnu",
-          status: 'en_route',
-          startTime: new Date().toISOString(),
-          total: order.total || 0,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.error && errorData.error.includes('déjà en cours de livraison')) {
-          console.log(" Commande déjà assignée, poursuite du processus");
-          return { success: true, alreadyAssigned: true };
-        }
-        throw new Error(errorData.error || `Erreur serveur: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("Erreur lors de l'envoi des données du livreur :", error);
-      throw error;
-    }
-  };
-
-  // Assigner un livreur à une commande
-  const handleAssignDriver = async (driver: Driver, order: Order) => {
-    try {
-      // Vérifier que c'est bien une commande avec livraison
-      if (!order.isDelivery) {
-        Alert.alert("Erreur", "Cette commande ne nécessite pas de livreur (retrait sur place)");
-        return;
-      }
-
-      // Mettre à jour le statut de la commande
-      await updateOrderStatus(order._id, ORDER_STATUS.IN_DELIVERY, driver._id);
-      
-      // Envoyer les données d'assignation au backend
-      try {
-        await sendDriverAssignmentData(order, driver);
-      } catch (assignmentError) {
-        console.warn("Avertissement assignation:", assignmentError);
-      }
-      
-      Alert.alert("Succès", `Livreur ${driver.user?.name || 'inconnu'} assigné avec succès !`);
-      setOrderModalVisible(false);
-      
-      if (distributorId) {
-        await fetchAllOrders(distributorId);
-      }
-    } catch (error) {
-      console.error("Erreur lors de l'assignation du livreur:", error);
-      Alert.alert("Erreur", error instanceof Error ? error.message : "Impossible d'assigner le livreur.");
     }
   };
 
@@ -1128,9 +1101,6 @@ export default function DistributorDashboard() {
 
     try {
       setIsValidatingCode(true);
-      
-      // ✅ La commande est déjà confirmée (acceptée)
-      // On va directement valider le code et compléter
       
       const endpoint = selectedOrder.isDelivery 
         ? `/orders/${selectedOrder._id}/validate-delivery`
@@ -1175,7 +1145,6 @@ export default function DistributorDashboard() {
           const errorData = await response.json();
           Alert.alert('Erreur', errorData.message || `Erreur serveur (${response.status})`);
         } catch (parseError) {
-          // Si le serveur retourne du HTML ou n'est pas JSON
           console.error('Erreur serveur (réponse non-JSON):', response.status, response.statusText);
           Alert.alert('Erreur serveur', `Le serveur a retourné une erreur (${response.status}). Vérifiez la connexion.`);
         }
@@ -1192,6 +1161,74 @@ export default function DistributorDashboard() {
     setSelectedOrder(order);
     setValidationCode('');
     setValidationModalVisible(true);
+  };
+
+  // Envoyer les données d'assignation du livreur au backend
+  const sendDriverAssignmentData = async (order: Order, driver: Driver) => {
+    try {
+      if (!distributorId) {
+        throw new Error('ID distributeur manquant');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/distributeurs/orders/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          distributorId,
+          orderId: order._id,
+          driverId: driver._id,
+          driverName: driver.user?.name || "Inconnu",
+          driverPhone: driver.user?.phone || "Non fourni",
+          clientName: order.clientName || "Inconnu",
+          status: 'en_route',
+          startTime: new Date().toISOString(),
+          total: order.total || 0,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.error && errorData.error.includes('déjà en cours de livraison')) {
+          console.log("✅ Commande déjà assignée, poursuite du processus");
+          return { success: true, alreadyAssigned: true };
+        }
+        throw new Error(errorData.error || `Erreur serveur: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Erreur lors de l'envoi des données du livreur :", error);
+      throw error;
+    }
+  };
+
+  // Assigner un livreur à une commande
+  const handleAssignDriver = async (driver: Driver, order: Order) => {
+    try {
+      if (!order.isDelivery) {
+        Alert.alert("Erreur", "Cette commande ne nécessite pas de livreur (retrait sur place)");
+        return;
+      }
+
+      await updateOrderStatus(order._id, ORDER_STATUS.IN_DELIVERY, driver._id);
+      
+      try {
+        await sendDriverAssignmentData(order, driver);
+      } catch (assignmentError) {
+        console.warn("Avertissement assignation:", assignmentError);
+      }
+      
+      Alert.alert("Succès", `Livreur ${driver.user?.name || 'inconnu'} assigné avec succès !`);
+      setOrderModalVisible(false);
+      
+      if (distributorId) {
+        await fetchAllOrders(distributorId);
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'assignation du livreur:", error);
+      Alert.alert("Erreur", error instanceof Error ? error.message : "Impossible d'assigner le livreur.");
+    }
   };
 
   // Gestion de l'adresse du distributeur
@@ -1950,7 +1987,7 @@ export default function DistributorDashboard() {
             </View>
             {selectedOrder && (
               <View style={styles.orderSummary}>
-                <Text style={styles.orderSummaryTitle}>Commande #{selectedOrder._id?.slice(-8)}</Text>
+                <Text style={styles.orderSummaryTitle}>{selectedOrder.orderId || generateOrderId(selectedOrder._id)}</Text>
                 <Text style={styles.orderSummaryClient}>{selectedOrder.clientName}</Text>
                 <Text style={styles.orderSummaryTotal}>{Number(selectedOrder.total).toLocaleString()} FCFA</Text>
               </View>
@@ -1998,7 +2035,7 @@ export default function DistributorDashboard() {
 
             {selectedOrder && (
               <View style={styles.validationOrderInfo}>
-                <Text style={styles.validationOrderTitle}>Commande #{selectedOrder._id?.slice(-8)}</Text>
+                <Text style={styles.validationOrderTitle}>{selectedOrder.orderId || generateOrderId(selectedOrder._id)}</Text>
                 <Text style={styles.validationOrderClient}>{selectedOrder.clientName}</Text>
                 <View style={styles.validationOrderDetails}>
                   <View style={styles.detailRow}>

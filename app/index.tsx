@@ -147,7 +147,7 @@ export default function HomeScreen() {
                   end={{ x: 1, y: 1 }}
                 >
                   <Image
-                    source={require('@/assets/images/express-gaz.png')}
+                    source={require('@/assets/images/express.png')}
                     style={styles.logo}
                   />
                 </LinearGradient>

@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { API_BASE_URL } from '@/service/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DistributorFooter from './DistributorFooter';
+import { generateOrderId } from '@/utils/orderUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -495,7 +496,7 @@ export default function NewOrderScreen() {
       <View style={[styles.orderCard, { borderLeftColor: getStatusColor(order.status), borderLeftWidth: 4 }]}>
         <View style={styles.orderHeader}>
           <View>
-            <Text style={styles.orderId}>#{order._id?.slice(-8) || 'N/A'}</Text>
+            <Text style={styles.orderId}>{generateOrderId(order._id)}</Text>
             <Text style={styles.orderTime}>
               {order.orderTime ? new Date(order.orderTime).toLocaleString() : 'Date non disponible'}
             </Text>
@@ -755,7 +756,7 @@ export default function NewOrderScreen() {
             {selectedOrder && (
               <View style={styles.validationOrderInfo}>
                 <Text style={styles.validationOrderTitle}>
-                  Commande #{selectedOrder._id?.slice(-8) || 'N/A'}
+                  {generateOrderId(selectedOrder._id)}
                 </Text>
                 <Text style={styles.validationOrderClient}>
                   {selectedOrder.clientName || 'Client non défini'}
@@ -864,7 +865,7 @@ export default function NewOrderScreen() {
             {selectedOrder && (
               <View style={styles.orderSummary}>
                 <Text style={styles.orderSummaryTitle}>
-                  Commande #{selectedOrder._id?.slice(-8) || 'N/A'}
+                  {generateOrderId(selectedOrder._id)}
                 </Text>
                 <Text style={styles.orderSummaryClient}>
                   {selectedOrder.clientName || 'Client non défini'}

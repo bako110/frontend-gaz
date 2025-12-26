@@ -199,17 +199,20 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
   // Annuler une livraison via l'API
   const cancelDelivery = async (livraisonId, reason) => {
     try {
-      const response = await makeApiCall(`${API_BASE_URL}/orders/${livraisonId}/cancel`, {
-        method: 'PUT',
+      console.log(' [LIVREUR] Annulation livraison:', { livraisonId, livreurId: userInfo.livreurId, reason });
+      
+      const response = await makeApiCall(`${API_BASE_URL}/orders/${livraisonId}/cancel-by-driver`, {
+        method: 'POST',
         body: JSON.stringify({
           livreurId: userInfo.livreurId,
-          cancellationReason: reason,
-          cancelledBy: 'livreur'
+          reason: reason
         }),
       });
+      
+      console.log(' [LIVREUR] Réponse annulation:', response);
       return response;
     } catch (error) {
-      console.error('Erreur annulation livraison:', error);
+      console.error(' [LIVREUR] Erreur annulation livraison:', error);
       throw error;
     }
   };
@@ -669,12 +672,9 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
     try {
       const result = await cancelDelivery(selectedLivraison.orderIdOriginal, cancellationReason);
       if (result.success) {
+        // Supprimer la livraison de la liste au lieu de la marquer comme annulée
         setLivraisons(prev =>
-          prev.map(l =>
-            l.id === selectedLivraison.id
-              ? { ...l, statut: 'annule' }
-              : l
-          )
+          prev.filter(l => l.id !== selectedLivraison.id)
         );
 
         setTodayStats(prev => ({
@@ -682,7 +682,7 @@ export const useLivreurState = (router) => { // Accepter router en paramètre
           livraisons: Math.max(0, prev.livraisons - 1),
         }));
 
-        Alert.alert('Succès', 'Livraison annulée avec succès !');
+        Alert.alert('Succès', 'Livraison annulée avec succès ! Elle a été retirée de votre liste.');
         
         setShowCancellationModal(false);
         setCancellationReason('');

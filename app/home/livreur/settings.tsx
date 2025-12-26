@@ -415,12 +415,12 @@ export default function SettingsScreen() {
         colors={isDarkMode ? ['#1a1a1a', '#2d2d2d'] : ['#1565C0', '#1565C0']}
         style={styles.header}
       >
-        <TouchableOpacity onPress={handleLogout} style={[styles.logoutHeaderButton, { marginTop: 15 }]}>
-          <Ionicons name="log-out-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-        <Text style={[styles.headerText, { marginTop: 30 }]}>Paramètres</Text>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { marginTop: 15 }]}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={[styles.headerText, { marginTop: 30 }]}>Paramètres</Text>
+        <TouchableOpacity onPress={handleLogout} style={[styles.logoutHeaderButton, { marginTop: 15 }]}>
+          <Ionicons name="log-out-outline" size={22} color="#fff" />
         </TouchableOpacity>
       </LinearGradient>
 

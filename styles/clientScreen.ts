@@ -678,6 +678,12 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     textTransform: 'uppercase',
   },
+  historyOrderId: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginBottom: 2,
+  },
   historyProduct: {
     fontSize: 14,
     fontWeight: '700',

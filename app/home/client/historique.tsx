@@ -10,6 +10,7 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
+  StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '@/service/config';
 import ClientFooter from './ClientFooter';
+import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
 
 const { width, height } = Dimensions.get('window');
 
@@ -77,7 +79,6 @@ export default function HistoriqueScreen() {
       
       console.log('Fetching historique for user:', userId);
       
-      // Utiliser la nouvelle route avec meilleure gestion des IDs
       const response = await fetch(`${API_BASE_URL}/orders/client-history/${userId}`, {
         method: 'GET',
         headers: { 
@@ -98,6 +99,8 @@ export default function HistoriqueScreen() {
           );
           const formattedOrders = sortedOrders.map((order) => ({
             id: order._id,
+            orderId: generateOrderId(order._id),
+            orderNumber: generateOrderNumber(order._id),
             date: order.orderTime ? new Date(order.orderTime).toLocaleString('fr-FR') : 'Date inconnue',
             produit: order.products && order.products.length > 0
               ? `${order.products[0].name} (${order.products[0].fuelType || 'Standard'})`
@@ -108,12 +111,12 @@ export default function HistoriqueScreen() {
             total: order.total || 0,
             statut: order.status || ORDER_STATUS.PENDING,
             priority: order.priority,
-            distributorName: order.distributorName || 'Distributeur inconnu',
+            distributorName: order.distributorId?.user?.name || order.distributorName || 'Distributeur inconnu',
             address: order.address || 'Adresse non définie',
             type: order.products && order.products.length > 0 ? order.products[0].fuelType : 'Standard',
-            validationCode: order.validationCode || order.orderCode, // Code de validation
-            isDelivery: order.isDelivery || false, // Flag pour déterminer si c'est une livraison ou un retrait
-            distributorId: order.distributorId, // ID du distributeur pour appel API
+            validationCode: order.validationCode || order.orderCode,
+            isDelivery: order.isDelivery || false,
+            distributorId: order.distributorId?._id || order.distributorId,
           }));
           setHistoriqueCommandes(formattedOrders);
         } else {
@@ -226,7 +229,6 @@ export default function HistoriqueScreen() {
     setModalVisible(true);
     setValidationCode(null);
     
-    // Charger le code de validation
     await fetchValidationCode(commande.id);
   };
 
@@ -278,8 +280,8 @@ export default function HistoriqueScreen() {
     >
       <View style={styles.cardHeader}>
         <View style={styles.dateContainer}>
-          <Ionicons name="calendar-outline" size={16} color="#666" />
-          <Text style={styles.historyDate}>{commande.date}</Text>
+          <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
+          <Text style={styles.orderIdText}>{commande.orderId}</Text>
         </View>
         <View style={styles.headerRightSection}>
           <View style={[styles.statusBadge, { backgroundColor: getStatutColor(commande.statut) + '20' }]}>
@@ -302,7 +304,10 @@ export default function HistoriqueScreen() {
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.productName}>{commande.produit}</Text>
+        <View style={styles.productInfo}>
+          <Text style={styles.productName}>{commande.produit}</Text>
+          <Text style={styles.orderDate}>{commande.date}</Text>
+        </View>
         <Text style={styles.productQuantity}>x{commande.quantite}</Text>
       </View>
 
@@ -323,127 +328,186 @@ export default function HistoriqueScreen() {
       visible={modalVisible}
       onRequestClose={() => setModalVisible(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Code de Validation</Text>
+      <View style={styles.modernModalOverlay}>
+        <View style={styles.modernModalContainer}>
+          <LinearGradient
+            colors={['#2E7D32', '#388E3C']}
+            style={styles.modernModalHeader}
+          >
+            <View style={styles.modernHeaderContent}>
+              <Ionicons name="receipt-outline" size={28} color="#fff" />
+              <Text style={styles.modernModalTitle}>Détails de la Commande</Text>
+            </View>
             <TouchableOpacity 
-              style={styles.closeButton}
+              style={styles.modernCloseButton}
               onPress={() => setModalVisible(false)}
             >
-              <Ionicons name="close" size={24} color="#666" />
+              <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
-          </View>
+          </LinearGradient>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={styles.modernModalContent} showsVerticalScrollIndicator={false}>
             {selectedCommande && (
-              <View style={styles.orderInfo}>
-                <Text style={styles.orderInfoTitle}>Détails de la commande</Text>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Produit:</Text>
-                  <Text style={styles.infoValue}>{selectedCommande.produit}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Quantité:</Text>
-                  <Text style={styles.infoValue}>{selectedCommande.quantite}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Total:</Text>
-                  <Text style={styles.infoValue}>{selectedCommande.total.toLocaleString()} FCFA</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Statut:</Text>
-                  <Text style={[styles.infoValue, { color: getStatutColor(selectedCommande.statut) }]}>
-                    {getStatutText(selectedCommande.statut)}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Distributeur:</Text>
-                  <Text style={styles.infoValue}>{selectedCommande.distributorName}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Date:</Text>
-                  <Text style={styles.infoValue}>{selectedCommande.date}</Text>
+              <View style={styles.modernOrderInfo}>
+                <View style={styles.modernInfoCard}>
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="cart-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Produit</Text>
+                      <Text style={styles.modernInfoValue}>{selectedCommande.produit}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="cash-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Total</Text>
+                      <Text style={styles.modernInfoValueHighlight}>{selectedCommande.total.toLocaleString()} FCFA</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="flag-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Statut</Text>
+                      <View style={[styles.modernStatusBadge, { backgroundColor: getStatutColor(selectedCommande.statut) + '20' }]}>
+                        <Text style={[styles.modernStatusText, { color: getStatutColor(selectedCommande.statut) }]}>
+                          {getStatutText(selectedCommande.statut)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="business-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Distributeur</Text>
+                      <Text style={styles.modernInfoValue}>{selectedCommande.distributorName}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Date</Text>
+                      <Text style={styles.modernInfoValue}>{selectedCommande.date}</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             )}
 
-            <View style={styles.validationCodeSection}>
-              <Text style={styles.validationCodeTitle}>Code de Validation</Text>
-              <Text style={styles.validationCodeDescription}>
+            <View style={styles.modernValidationSection}>
+              <View style={styles.modernSectionHeader}>
+                <Ionicons name="key-outline" size={24} color="#2E7D32" />
+                <Text style={styles.modernSectionTitle}>Code de Validation</Text>
+              </View>
+              <Text style={styles.modernSectionDescription}>
                 {selectedCommande?.isDelivery 
-                  ? 'Donnez ce code au livreur pour confirmer la livraison'
-                  : 'Utilisez ce code pour confirmer votre retrait sur place'}
+                  ? '🚚 Donnez ce code au livreur pour confirmer la livraison'
+                  : '🏪 Utilisez ce code pour confirmer votre retrait sur place'}
               </Text>
 
               {loadingCode ? (
-                <View style={styles.codeLoading}>
+                <View style={styles.modernCodeLoading}>
                   <ActivityIndicator size="large" color="#2E7D32" />
-                  <Text style={styles.loadingText}>Chargement du code...</Text>
+                  <Text style={styles.modernLoadingText}>Chargement du code...</Text>
                 </View>
               ) : validationCode ? (
-                <View style={styles.codeContainer}>
-                  <View style={styles.codeDisplay}>
-                    <Text style={styles.codeText}>{validationCode}</Text>
+                <LinearGradient
+                  colors={['#E8F5E9', '#C8E6C9']}
+                  style={styles.modernCodeContainer}
+                >
+                  <View style={styles.modernCodeDisplay}>
+                    <Text style={styles.modernCodeText}>{validationCode}</Text>
                   </View>
-                  <Text style={styles.codeId}>
-                    Commande: {selectedCommande?.id?.slice(-8).toUpperCase()}
-                  </Text>
-                </View>
+                  <View style={styles.modernCodeFooter}>
+                    <Ionicons name="shield-checkmark" size={16} color="#2E7D32" />
+                    <Text style={styles.modernCodeId}>
+                      {selectedCommande?.orderId}
+                    </Text>
+                  </View>
+                </LinearGradient>
               ) : (
-                <View style={styles.codeError}>
+                <View style={styles.modernCodeError}>
                   <Ionicons name="alert-circle-outline" size={48} color="#E53935" />
-                  <Text style={styles.errorText}>Code non disponible</Text>
+                  <Text style={styles.modernErrorText}>Code non disponible</Text>
                   <TouchableOpacity 
-                    style={styles.retryButton}
+                    style={styles.modernRetryButton}
                     onPress={() => selectedCommande && fetchValidationCode(selectedCommande.id)}
                   >
-                    <Text style={styles.retryButtonText}>Réessayer</Text>
+                    <Ionicons name="refresh" size={18} color="#fff" />
+                    <Text style={styles.modernRetryButtonText}>Réessayer</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
 
-            <View style={styles.instructions}>
-              <Text style={styles.instructionsTitle}>Instructions:</Text>
+            <View style={styles.modernInstructions}>
+              <View style={styles.modernInstructionsHeader}>
+                <Ionicons name="information-circle" size={22} color="#1976D2" />
+                <Text style={styles.modernInstructionsTitle}>Instructions</Text>
+              </View>
               {selectedCommande?.isDelivery ? (
                 <>
-                  <View style={styles.instructionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.instructionText}>
+                  <View style={styles.modernInstructionItem}>
+                    <View style={styles.modernInstructionNumber}>
+                      <Text style={styles.modernInstructionNumberText}>1</Text>
+                    </View>
+                    <Text style={styles.modernInstructionText}>
                       Donnez ce code au livreur lors de la livraison
                     </Text>
                   </View>
-                  <View style={styles.instructionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.instructionText}>
+                  <View style={styles.modernInstructionItem}>
+                    <View style={styles.modernInstructionNumber}>
+                      <Text style={styles.modernInstructionNumberText}>2</Text>
+                    </View>
+                    <Text style={styles.modernInstructionText}>
                       Le livreur saisira le code pour confirmer la livraison
                     </Text>
                   </View>
-                  <View style={styles.instructionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.instructionText}>
+                  <View style={styles.modernInstructionItem}>
+                    <View style={styles.modernInstructionNumber}>
+                      <Text style={styles.modernInstructionNumberText}>3</Text>
+                    </View>
+                    <Text style={styles.modernInstructionText}>
                       Conservez ce code jusqu'à la livraison complète
                     </Text>
                   </View>
                 </>
               ) : (
                 <>
-                  <View style={styles.instructionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.instructionText}>
+                  <View style={styles.modernInstructionItem}>
+                    <View style={styles.modernInstructionNumber}>
+                      <Text style={styles.modernInstructionNumberText}>1</Text>
+                    </View>
+                    <Text style={styles.modernInstructionText}>
                       Allez chercher votre produit au distributeur
                     </Text>
                   </View>
-                  <View style={styles.instructionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.instructionText}>
+                  <View style={styles.modernInstructionItem}>
+                    <View style={styles.modernInstructionNumber}>
+                      <Text style={styles.modernInstructionNumberText}>2</Text>
+                    </View>
+                    <Text style={styles.modernInstructionText}>
                       Donnez ce code pour confirmer votre retrait
                     </Text>
                   </View>
-                  <View style={styles.instructionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.instructionText}>
+                  <View style={styles.modernInstructionItem}>
+                    <View style={styles.modernInstructionNumber}>
+                      <Text style={styles.modernInstructionNumberText}>3</Text>
+                    </View>
+                    <Text style={styles.modernInstructionText}>
                       Appuyez sur "Confirmer Retrait" pour finaliser
                     </Text>
                   </View>
@@ -452,32 +516,41 @@ export default function HistoriqueScreen() {
             </View>
           </ScrollView>
 
-          <View style={styles.modalFooter}>
+          <View style={styles.modernModalFooter}>
             {!selectedCommande?.isDelivery && selectedCommande?.statut === ORDER_STATUS.CONFIRMED ? (
-              // Bouton de confirmation pour RETRAIT SUR PLACE en statut confirmé
-              <>
+              <View style={styles.modernFooterButtons}>
                 <TouchableOpacity 
-                  style={[styles.confirmPickupButton, { opacity: validationCode ? 1 : 0.5 }]}
+                  style={[styles.modernConfirmButton, { opacity: validationCode ? 1 : 0.5 }]}
                   onPress={handleCompletePickup}
                   disabled={!validationCode}
                 >
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.confirmPickupButtonText}>Confirmer le Retrait</Text>
+                  <LinearGradient
+                    colors={['#2E7D32', '#388E3C']}
+                    style={styles.modernButtonGradient}
+                  >
+                    <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                    <Text style={styles.modernConfirmButtonText}>Confirmer le Retrait</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={styles.closeModalButton}
+                  style={styles.modernCancelButton}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Text style={styles.closeModalButtonText}>Annuler</Text>
+                  <Text style={styles.modernCancelButtonText}>Annuler</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             ) : (
-              // Bouton de fermeture standard pour les livraisons
               <TouchableOpacity 
-                style={styles.closeModalButton}
+                style={styles.modernCloseButton2}
                 onPress={() => setModalVisible(false)}
               >
-                <Text style={styles.closeModalButtonText}>Fermer</Text>
+                <LinearGradient
+                  colors={['#757575', '#9E9E9E']}
+                  style={styles.modernButtonGradient}
+                >
+                  <Ionicons name="close" size={22} color="#fff" />
+                  <Text style={styles.modernCloseButtonText}>Fermer</Text>
+                </LinearGradient>
               </TouchableOpacity>
             )}
           </View>
@@ -539,7 +612,7 @@ export default function HistoriqueScreen() {
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -599,11 +672,16 @@ const styles = {
     alignItems: 'center',
     flex: 1,
   },
-  historyDate: {
+  orderIdText: {
     fontSize: 12,
     color: '#666',
     marginLeft: 6,
     fontWeight: '500',
+  },
+  headerRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -611,12 +689,12 @@ const styles = {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 8,
   },
-  headerRightSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginLeft: 4,
+    textTransform: 'uppercase',
   },
   qrBadge: {
     flexDirection: 'row',
@@ -635,12 +713,6 @@ const styles = {
     marginLeft: 3,
     textTransform: 'uppercase',
   },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginLeft: 4,
-    textTransform: 'uppercase',
-  },
   cardBody: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -650,11 +722,18 @@ const styles = {
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  productInfo: {
+    flex: 1,
+  },
   productName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1E293B',
-    flex: 1,
+    marginBottom: 4,
+  },
+  orderDate: {
+    fontSize: 12,
+    color: '#64748B',
   },
   productQuantity: {
     fontSize: 14,
@@ -669,7 +748,6 @@ const styles = {
   distributorInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   distributorText: {
     fontSize: 12,
@@ -681,25 +759,6 @@ const styles = {
     fontSize: 16,
     fontWeight: '700',
     color: '#2E7D32',
-  },
-  codeBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2E7D32',
-  },
-  codeBadgeText: {
-    fontSize: 10,
-    color: '#2E7D32',
-    fontWeight: '600',
-    marginLeft: 4,
   },
   emptyContainer: {
     flex: 1,
@@ -744,192 +803,297 @@ const styles = {
     color: '#64748B',
     fontWeight: '500',
   },
-  // Modal Styles
-  modalOverlay: {
+  // Modern Modal Styles
+  modernModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
   },
-  modalContainer: {
+  modernModalContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    width: '100%',
-    maxHeight: '90%',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    maxHeight: '95%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 12,
   },
-  modalHeader: {
+  modernModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
   },
-  modalTitle: {
-    fontSize: 18,
+  modernHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modernModalTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#1E293B',
-    flex: 1,
+    color: '#FFFFFF',
   },
-  closeButton: {
+  modernCloseButton: {
     padding: 4,
   },
-  modalContent: {
+  modernModalContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
     maxHeight: height * 0.7,
   },
-  modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+  modernOrderInfo: {
+    marginBottom: 20,
   },
-  closeModalButton: {
-    backgroundColor: '#2E7D32',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  closeModalButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  confirmPickupButton: {
-    backgroundColor: '#2E7D32',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  confirmPickupButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  orderInfo: {
-    padding: 20,
+  modernInfoCard: {
     backgroundColor: '#F8FAFC',
-    margin: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  orderInfoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  modernInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modernInfoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  modernInfoTextContainer: {
+    flex: 1,
+  },
+  modernInfoLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  modernInfoValue: {
+    fontSize: 15,
     color: '#1E293B',
+    fontWeight: '600',
+  },
+  modernInfoValueHighlight: {
+    fontSize: 18,
+    color: '#2E7D32',
+    fontWeight: '700',
+  },
+  modernStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  modernStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  modernValidationSection: {
+    marginBottom: 20,
+  },
+  modernSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 12,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  modernSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
   },
-  infoLabel: {
+  modernSectionDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  modernCodeLoading: {
+    padding: 40,
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+  },
+  modernLoadingText: {
+    marginTop: 12,
     fontSize: 14,
     color: '#64748B',
     fontWeight: '500',
   },
-  infoValue: {
-    fontSize: 14,
-    color: '#1E293B',
-    fontWeight: '600',
-  },
-  validationCodeSection: {
-    padding: 20,
+  modernCodeContainer: {
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
-  },
-  validationCodeTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 8,
-  },
-  validationCodeDescription: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  codeLoading: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  codeContainer: {
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    marginBottom: 20,
-  },
-  codeDisplay: {
-    backgroundColor: '#F8FAFC',
-    padding: 30,
-    borderRadius: 12,
     borderWidth: 2,
     borderColor: '#2E7D32',
-    marginBottom: 16,
   },
-  codeText: {
-    fontSize: 32,
-    fontWeight: '700',
+  modernCodeDisplay: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 32,
+    paddingVertical: 20,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#2E7D32',
+  },
+  modernCodeText: {
+    fontSize: 36,
+    fontWeight: '800',
     color: '#2E7D32',
-    letterSpacing: 4,
+    letterSpacing: 8,
   },
-  codeId: {
-    fontSize: 14,
-    color: '#64748B',
+  modernCodeFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  modernCodeId: {
+    fontSize: 13,
+    color: '#2E7D32',
     fontWeight: '600',
   },
-  codeError: {
-    padding: 40,
+  modernCodeError: {
+    padding: 32,
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    marginBottom: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
   },
-  errorText: {
+  modernErrorText: {
     fontSize: 16,
     color: '#E53935',
     fontWeight: '600',
     marginTop: 12,
     marginBottom: 16,
   },
-  instructions: {
-    padding: 20,
-    backgroundColor: '#F0FDF4',
-    margin: 20,
+  modernRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#E53935',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
   },
-  instructionsTitle: {
-    fontSize: 16,
+  modernRetryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 12,
   },
-  instructionItem: {
+  modernInstructions: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  modernInstructionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  modernInstructionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  modernInstructionItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  instructionText: {
+  modernInstructionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#1976D2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  modernInstructionNumberText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modernInstructionText: {
     fontSize: 14,
     color: '#1E293B',
-    marginLeft: 8,
     flex: 1,
     lineHeight: 20,
   },
-};
+  modernModalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  modernFooterButtons: {
+    gap: 12,
+  },
+  modernConfirmButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#2E7D32',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+  },
+  modernConfirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modernCancelButton: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modernCancelButtonText: {
+    color: '#64748B',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modernCloseButton2: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modernCloseButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});

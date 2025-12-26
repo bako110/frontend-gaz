@@ -389,36 +389,91 @@ export default function WalletScreen() {
 
   const renderTransactionDetailModal = () => (
     <Modal visible={transactionDetailModalVisible} transparent={true} animationType="slide" onRequestClose={() => setTransactionDetailModalVisible(false)}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Détails de la transaction</Text>
-          {selectedTransaction && (
-            <>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Type:</Text>
-                <Text style={[styles.detailValue, { color: selectedTransaction.isPositive ? '#2E7D32' : '#E53935' }]}>
-                  {selectedTransaction.isPositive ? '+' : '-'} {selectedTransaction.amount.toLocaleString()} FCFA
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Méthode:</Text>
-                <Text style={styles.detailValue}>{selectedTransaction.method}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Date:</Text>
-                <Text style={styles.detailValue}>{selectedTransaction.date}</Text>
-              </View>
-              {selectedTransaction.description ? (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Description:</Text>
-                  <Text style={styles.detailValue}>{selectedTransaction.description}</Text>
+      <View style={styles.modernModalOverlay}>
+        <View style={styles.modernModalContainer}>
+          <LinearGradient
+            colors={selectedTransaction?.isPositive ? ['#2E7D32', '#388E3C'] : ['#E53935', '#D32F2F']}
+            style={styles.modernModalHeader}
+          >
+            <View style={styles.modernHeaderContent}>
+              <Ionicons 
+                name={selectedTransaction?.isPositive ? "arrow-down-circle" : "arrow-up-circle"} 
+                size={28} 
+                color="#fff" 
+              />
+              <Text style={styles.modernModalTitle}>
+                {selectedTransaction?.isPositive ? 'Crédit' : 'Débit'}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.modernCloseButton}
+              onPress={() => setTransactionDetailModalVisible(false)}
+            >
+              <Ionicons name="close-circle" size={32} color="rgba(255,255,255,0.9)" />
+            </TouchableOpacity>
+          </LinearGradient>
+
+          <View style={styles.modernModalContent}>
+            {selectedTransaction && (
+              <View style={styles.modernTransactionInfo}>
+                <View style={styles.modernAmountCard}>
+                  <Text style={styles.modernAmountLabel}>Montant</Text>
+                  <Text style={[styles.modernAmountValue, { color: selectedTransaction.isPositive ? '#2E7D32' : '#E53935' }]}>
+                    {selectedTransaction.isPositive ? '+' : '-'} {selectedTransaction.amount.toLocaleString()} FCFA
+                  </Text>
                 </View>
-              ) : null}
-            </>
-          )}
-          <TouchableOpacity style={styles.cancelButton} onPress={() => setTransactionDetailModalVisible(false)}>
-            <Text style={styles.cancelButtonText}>Fermer</Text>
-          </TouchableOpacity>
+
+                <View style={styles.modernInfoCard}>
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="card-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Méthode de paiement</Text>
+                      <Text style={styles.modernInfoValue}>{selectedTransaction.method}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.modernInfoRow}>
+                    <View style={styles.modernInfoIconContainer}>
+                      <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.modernInfoTextContainer}>
+                      <Text style={styles.modernInfoLabel}>Date</Text>
+                      <Text style={styles.modernInfoValue}>{selectedTransaction.date}</Text>
+                    </View>
+                  </View>
+
+                  {selectedTransaction.description ? (
+                    <View style={styles.modernInfoRow}>
+                      <View style={styles.modernInfoIconContainer}>
+                        <Ionicons name="document-text-outline" size={20} color="#2E7D32" />
+                      </View>
+                      <View style={styles.modernInfoTextContainer}>
+                        <Text style={styles.modernInfoLabel}>Description</Text>
+                        <Text style={styles.modernInfoValue}>{selectedTransaction.description}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.modernModalFooter}>
+            <TouchableOpacity 
+              style={styles.modernCloseButton2}
+              onPress={() => setTransactionDetailModalVisible(false)}
+            >
+              <LinearGradient
+                colors={['#757575', '#9E9E9E']}
+                style={styles.modernButtonGradient}
+              >
+                <Ionicons name="close" size={22} color="#fff" />
+                <Text style={styles.modernCloseButtonText}>Fermer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>

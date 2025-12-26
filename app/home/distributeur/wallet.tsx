@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -16,12 +17,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { generateOrderId } from '@/utils/orderUtils';
 import { API_BASE_URL } from '@/service/config';
 import DistributorFooter from './DistributorFooter';
 
 const { width, height } = Dimensions.get('window');
 
-export default function WalletScreen({ navigation }) {
+export default function WalletScreen() {
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
@@ -234,6 +237,14 @@ export default function WalletScreen({ navigation }) {
     return `${bal.toLocaleString()} FCFA`;
   };
 
+  // Fonction pour transformer les IDs MongoDB dans une description
+  const formatDescriptionWithOrderId = (description) => {
+    if (!description) return "Aucune description";
+    // Regex pour détecter les IDs MongoDB (24 caractères hexadécimaux)
+    const mongoIdRegex = /([a-f0-9]{24})/gi;
+    return description.replace(mongoIdRegex, (match) => generateOrderId(match));
+  };
+
   const formatTransactionDetails = (transaction) => {
     if (!transaction) return [];
     
@@ -248,7 +259,7 @@ export default function WalletScreen({ navigation }) {
       },
       { 
         label: "Description", 
-        value: transaction.description || transaction.motif || "Aucune description" 
+        value: formatDescriptionWithOrderId(transaction.description || transaction.motif) 
       },
       { 
         label: "Date", 
@@ -260,7 +271,7 @@ export default function WalletScreen({ navigation }) {
       },
       ...(transaction.relatedOrder ? [{ 
         label: "Commande", 
-        value: transaction.relatedOrder 
+        value: generateOrderId(transaction.relatedOrder) 
       }] : []),
     ];
   };
@@ -293,14 +304,14 @@ export default function WalletScreen({ navigation }) {
         </View>
         <View style={styles.transactionDetails}>
           <Text style={styles.transactionDescription}>
-            {transaction.description || transaction.motif || 'Transaction'}
+            {formatDescriptionWithOrderId(transaction.description || transaction.motif)}
           </Text>
           <Text style={styles.transactionDate}>
             {formatDate(transaction.date || transaction.createdAt)}
           </Text>
           {transaction.relatedOrder && (
             <Text style={styles.transactionOrderId}>
-              Commande: {transaction.relatedOrder.substring(transaction.relatedOrder.length - 8)}
+              {generateOrderId(transaction.relatedOrder)}
             </Text>
           )}
         </View>
@@ -325,7 +336,7 @@ export default function WalletScreen({ navigation }) {
       <View style={{ flex: 1 }}>
         <LinearGradient colors={['#2E7D32', '#388E3C']} style={styles.header}>
           <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+            <TouchableOpacity onPress={() => router.replace('/home/distributeurScreen')}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Mon Portefeuille</Text>

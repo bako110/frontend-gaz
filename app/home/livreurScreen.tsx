@@ -24,6 +24,7 @@ import { API_BASE_URL } from '@/service/config';
 import { useLivreurState } from './livreur/livreurState';
 import { useExitAlert } from '@/app/hooks/useExitAlert';
 import { useTheme } from '@/contexts/ThemeContext';
+import { generateOrderId } from '@/utils/orderUtils';
 
 const LivreurDashboard = () => {
   // Gestion de la sortie de l'application
@@ -322,7 +323,7 @@ const LivreurDashboard = () => {
       <TouchableOpacity style={styles.livraisonCard} activeOpacity={0.8}>
         <View style={styles.livraisonHeader}>
           <View style={styles.livraisonInfo}>
-            <Text style={styles.livraisonId}>#{livraison.id?.substring(0, 8) || 'N/A'}</Text>
+            <Text style={styles.livraisonId}>{generateOrderId(livraison.id)}</Text>
             <View style={[styles.statutBadge, { backgroundColor: getStatutColor(livraison.statut) + '20' }]}>
               <Ionicons name={getStatutIcon(livraison.statut)} size={16} color={getStatutColor(livraison.statut)} />
               <Text style={[styles.statutText, { color: getStatutColor(livraison.statut) }]}>
