@@ -1044,12 +1044,68 @@ export default function DistributorDashboard() {
     }
   };
 
+  // Envoyer les données d'assignation du livreur au backend
+  const sendDriverAssignmentData = async (order: Order, driver: Driver) => {
+    try {
+      if (!distributorId) {
+        throw new Error('ID distributeur manquant');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/distributeurs/orders/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          distributorId,
+          orderId: order._id,
+          driverId: driver._id,
+          driverName: driver.user?.name || "Inconnu",
+          driverPhone: driver.user?.phone || "Non fourni",
+          clientName: order.clientName || "Inconnu",
+          status: 'en_route',
+          startTime: new Date().toISOString(),
+          total: order.total || 0,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.error && errorData.error.includes('déjà en cours de livraison')) {
+          console.log(" Commande déjà assignée, poursuite du processus");
+          return { success: true, alreadyAssigned: true };
+        }
+        throw new Error(errorData.error || `Erreur serveur: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Erreur lors de l'envoi des données du livreur :", error);
+      throw error;
+    }
+  };
+
   // Assigner un livreur à une commande
   const handleAssignDriver = async (driver: Driver, order: Order) => {
     try {
+      // Vérifier que c'est bien une commande avec livraison
+      if (!order.isDelivery) {
+        Alert.alert("Erreur", "Cette commande ne nécessite pas de livreur (retrait sur place)");
+        return;
+      }
+
+      // Mettre à jour le statut de la commande
       await updateOrderStatus(order._id, ORDER_STATUS.IN_DELIVERY, driver._id);
-      Alert.alert("Succès", "Livreur assigné avec succès !");
+      
+      // Envoyer les données d'assignation au backend
+      try {
+        await sendDriverAssignmentData(order, driver);
+      } catch (assignmentError) {
+        console.warn("Avertissement assignation:", assignmentError);
+      }
+      
+      Alert.alert("Succès", `Livreur ${driver.user?.name || 'inconnu'} assigné avec succès !`);
       setOrderModalVisible(false);
+      
       if (distributorId) {
         await fetchAllOrders(distributorId);
       }
