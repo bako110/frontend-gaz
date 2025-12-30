@@ -45,7 +45,7 @@ export default function ResetPinScreen() {
     }
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/send-reset-code`, {
+      const response = await fetch(`${API_BASE_URL}/pin/send-reset-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
@@ -71,7 +71,7 @@ export default function ResetPinScreen() {
     }
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/verify-reset-code`, {
+      const response = await fetch(`${API_BASE_URL}/pin/verify-reset-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code: verificationCode }),
@@ -90,36 +90,43 @@ export default function ResetPinScreen() {
 
   // 🔐 Étape 3: Création du nouveau PIN
   const handleNewPinSubmit = async () => {
-    if (newPin.length !== 4 || confirmPin.length !== 4) {
-      Alert.alert('Erreur', 'Les PIN doivent contenir 4 chiffres');
-      return;
+  const cleanPhone = phone.replace(/\s+/g, ''); // Supprime tous les espaces
+
+  if (newPin.length !== 4 || confirmPin.length !== 4) {
+    Alert.alert('Erreur', 'Les PIN doivent contenir 4 chiffres');
+    return;
+  }
+  if (newPin !== confirmPin) {
+    Alert.alert('Erreur', 'Les PIN ne correspondent pas');
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/pin/reset-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: cleanPhone, newPin }), // ← utiliser cleanPhone
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Impossible de réinitialiser le PIN');
     }
-    if (newPin !== confirmPin) {
-      Alert.alert('Erreur', 'Les PIN ne correspondent pas');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/reset-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, newPin }),
-      });
-      if (!response.ok) {
-        throw new Error('Erreur lors de la réinitialisation');
-      }
-      setStep('confirmation');
-      Alert.alert('Succès', 'Votre PIN a été réinitialisé avec succès');
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de réinitialiser le PIN');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+    setStep('confirmation');
+    Alert.alert('Succès', 'Votre PIN a été réinitialisé avec succès');
+  } catch (error: any) {
+    Alert.alert('Erreur', error.message || 'Impossible de réinitialiser le PIN');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   // ✅ Étape 4: Confirmation et redirection
   const handleConfirmation = () => {
-    router.replace('/auth/login');
+    router.replace('/auth/login_with_phone');
   };
 
   // ⏱️ Gestion du countdown pour le renvoi de code

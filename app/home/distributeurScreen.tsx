@@ -276,6 +276,9 @@ export default function DistributorDashboard() {
   const [activeDeliveries, setActiveDeliveries] = useState<Order[]>([]);
   const [confirmedOrders, setConfirmedOrders] = useState<Order[]>([]);
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
+  const [filteredCompletedOrders, setFilteredCompletedOrders] = useState<Order[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [inventory, setInventory] = useState<Product[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [addProductModalVisible, setAddProductModalVisible] = useState(false);
@@ -482,6 +485,34 @@ export default function DistributorDashboard() {
 
     return () => backHandler.remove();
   }, [lastBackPress]);
+
+  // useEffect pour filtrer les commandes complétées
+  useEffect(() => {
+    filterCompletedOrders();
+  }, [completedOrders, searchQuery, filterStatus]);
+
+  // Fonction pour filtrer les commandes complétées
+  const filterCompletedOrders = () => {
+    let filtered = completedOrders;
+    
+    // Filtrer par statut
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(order => order.status === filterStatus);
+    }
+    
+    // Filtrer par recherche (ID, nom client, téléphone)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(order => 
+        (order.orderId && order.orderId.toLowerCase().includes(query)) ||
+        order.clientName.toLowerCase().includes(query) ||
+        order.clientPhone.toLowerCase().includes(query) ||
+        (order.orderNumber && order.orderNumber.toLowerCase().includes(query))
+      );
+    }
+    
+    setFilteredCompletedOrders(filtered);
+  };
 
   // Fonction pour calculer les tendances (pourcentage d'évolution)
   const calculateTrends = (currentStats: DailyStats, previousStats: DailyStats): Trends => {
@@ -1557,6 +1588,7 @@ export default function DistributorDashboard() {
     <TouchableOpacity style={styles.orderCard} activeOpacity={0.8}>
       <View style={styles.orderHeader}>
         <View>
+          <Text style={styles.orderId}>{order.orderId || generateOrderId(order._id)}</Text>
           <Text style={styles.orderTime}>{order.orderTime}</Text>
         </View>
         <View style={styles.orderBadges}>
@@ -1630,7 +1662,7 @@ export default function DistributorDashboard() {
   const DeliveryCard = ({ delivery }: { delivery: Order }) => (
     <View style={styles.deliveryCard}>
       <View style={styles.deliveryHeader}>
-        <Text style={styles.deliveryId}>#{delivery._id?.slice(-8)}</Text>
+        <Text style={styles.deliveryId}>{delivery.orderId || generateOrderId(delivery._id)}</Text>
         <View style={[styles.deliveryStatus, { backgroundColor: getStatusColor(delivery.status) + '20' }]}>
           <Text style={[styles.deliveryStatusText, { color: getStatusColor(delivery.status) }]}>
             {delivery.status === 'en_livraison' ? 'EN LIVRAISON' : 'LIVRÉ'}

@@ -33,12 +33,16 @@ const WalletScreen = () => {
   });
   const [transactionType, setTransactionType] = useState(null);
   const [transactionAmount, setTransactionAmount] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [selectedMobileOperator, setSelectedMobileOperator] = useState('orange');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [transactionModalVisible, setTransactionModalVisible] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('mobile_money');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [pendingWithdrawalId, setPendingWithdrawalId] = useState(null);
 
   // Récupération de l'ID du livreur et du token
   const getLivreurAuth = async () => {
@@ -104,7 +108,7 @@ const WalletScreen = () => {
     }
   };
 
-  // Récupération des transactions - Version corrigée avec mapping des types
+  // Récupération des transactions
   const fetchWalletTransactions = async () => {
     try {
       const { userToken } = await getLivreurAuth();
@@ -129,7 +133,6 @@ const WalletScreen = () => {
 
       let transactionsArray = [];
       
-      // Gestion robuste des transactions - toujours retourner un tableau
       if (data && typeof data === 'object') {
         if (data.transactions?.transactions && Array.isArray(data.transactions.transactions)) {
           transactionsArray = data.transactions.transactions;
@@ -141,12 +144,10 @@ const WalletScreen = () => {
       }
 
       const formattedTransactions = transactionsArray.map((tx, index) => {
-        // Mapping des types pour l'affichage
         let displayType = 'transaction';
         let isPositive = true;
         let displayMethod = tx.description || 'Transaction';
         
-        // Déterminer le type d'affichage et le signe
         if (tx.type === 'credit') {
           displayType = 'credit';
           isPositive = true;
@@ -165,7 +166,6 @@ const WalletScreen = () => {
           displayMethod = 'Retrait';
         }
         
-        // Extraire la méthode de paiement de la description si possible
         if (tx.description) {
           if (tx.description.includes('Mobile Money')) displayMethod = 'Mobile Money';
           else if (tx.description.includes('Carte')) displayMethod = 'Carte bancaire';
@@ -175,8 +175,8 @@ const WalletScreen = () => {
 
         return {
           id: tx._id || tx.id || `TX${Date.now()}_${index}`,
-          type: displayType, // Type pour l'affichage
-          originalType: tx.type || 'unknown', // Type original de l'API
+          type: displayType,
+          originalType: tx.type || 'unknown',
           amount: tx.amount ?? 0,
           date: tx.date ? new Date(tx.date).toLocaleDateString('fr-FR', {
             day: '2-digit',
@@ -188,15 +188,13 @@ const WalletScreen = () => {
           status: tx.status || 'completed',
           method: displayMethod,
           description: tx.description || '',
-          isPositive: isPositive, // Pour faciliter l'affichage
-          // Garder les données originales pour référence
+          isPositive: isPositive,
           originalData: tx
         };
       });
       
       setWalletTransactions(formattedTransactions);
       
-      // Mettre à jour le solde depuis les transactions si disponible
       if (data.transactions?.balance !== undefined) {
         setLivreurInfo(prev => ({
           ...prev,
@@ -206,7 +204,6 @@ const WalletScreen = () => {
     } catch (error) {
       console.error("Erreur lors de la récupération des transactions :", error);
       setError(error.message || "Impossible de charger l'historique des transactions.");
-      // Même en cas d'erreur, on garde un tableau vide cohérent
       setWalletTransactions([]);
     }
   };
@@ -221,14 +218,12 @@ const WalletScreen = () => {
         const parsedUserProfile = JSON.parse(userProfile);
         const user = parsedUserProfile.profile;
         
-        // Valeurs par défaut complètes pour les informations utilisateur
         setLivreurInfo({
           name: user?.name || 'Utilisateur',
-          balance: 0, // Initialisé à 0, sera mis à jour par l'API
+          balance: 0,
           _id: user?._id || null,
         });
 
-        // Charger le solde et les transactions après avoir défini l'ID
         await Promise.all([
           fetchLivreurBalance(),
           fetchWalletTransactions()
@@ -236,7 +231,6 @@ const WalletScreen = () => {
       } catch (error) {
         console.error("Erreur lors du chargement des données utilisateur :", error);
         Alert.alert("Erreur", "Impossible de charger vos données. Veuillez vous reconnecter.");
-        // Même en cas d'erreur, on initialise avec des valeurs par défaut
         setLivreurInfo({
           name: 'Utilisateur',
           balance: 0,
@@ -251,33 +245,48 @@ const WalletScreen = () => {
     loadUserData();
   }, []);
 
-  // Gestion de la transaction (recharge/retrait)
-  const handleTransaction = async () => {
+  // Validation du formulaire de retrait
+  const validateWithdrawalForm = () => {
     if (!transactionAmount || isNaN(parseInt(transactionAmount))) {
       Alert.alert('Erreur', 'Veuillez entrer un montant valide.');
-      return;
+      return false;
     }
 
     const amount = parseInt(transactionAmount);
     if (amount <= 0) {
       Alert.alert('Erreur', 'Le montant doit être supérieur à 0.');
-      return;
+      return false;
     }
 
-    if (transactionType === 'retrait' && amount > livreurInfo.balance) {
+    if (amount > livreurInfo.balance) {
       Alert.alert('Erreur', 'Solde insuffisant pour effectuer ce retrait.');
-      return;
+      return false;
     }
+
+    if (!phoneNumber || phoneNumber.length < 8) {
+      Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide.');
+      return false;
+    }
+
+    return true;
+  };
+
+  // Soumettre la demande de retrait
+  const submitWithdrawalRequest = async () => {
+    if (!validateWithdrawalForm()) return;
 
     try {
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error("Session expirée. Veuillez vous reconnecter.");
 
-      const transactionData = {
+      const withdrawalData = {
         userId: livreurInfo._id,
-        type: transactionType,
-        amount: amount,
-        method: paymentMethod,
+        type: 'retrait',
+        amount: parseInt(transactionAmount),
+        method: 'mobile_money',
+        phoneNumber: phoneNumber,
+        operator: selectedMobileOperator,
+        status: 'pending' // Le statut sera en attente jusqu'à validation OTP
       };
 
       const response = await fetch(`${API_BASE_URL}/wallet/transaction`, {
@@ -286,136 +295,186 @@ const WalletScreen = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${userToken}`,
         },
-        body: JSON.stringify(transactionData),
+        body: JSON.stringify(withdrawalData),
       });
 
+      // Vérifier si la réponse est du JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // Si ce n'est pas du JSON, essayer de récupérer le texte pour le débogage
+        const textResponse = await response.text();
+        console.error('Réponse non-JSON du serveur:', textResponse);
+        throw new Error('Le serveur a retourné une réponse invalide. Vérifiez que l\'API endpoint existe.');
+      }
+
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          throw new Error(`Erreur HTTP: ${response.status} - ${response.statusText}`);
+        }
         throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
       }
 
       const data = await response.json();
+      
       if (data.success) {
-        // Recharger le solde et les transactions après une opération
+        // Simuler l'envoi d'un OTP (dans un environnement réel, ce serait envoyé par SMS)
+        Alert.alert(
+          'OTP Envoyé',
+          `Un code OTP a été envoyé au ${phoneNumber}. Veuillez le saisir pour confirmer le retrait.`
+        );
+        
+        // Simuler un OTP (en production, l'OTP serait généré côté serveur)
+        const simulatedOtp = '123456'; // À remplacer par un OTP réel
+        setPendingWithdrawalId(data.withdrawalId || 'SIMULATED_ID');
+        setTransactionModalVisible(false);
+        setOtpModalVisible(true);
+        
+        // Pour démo, pré-remplir l'OTP
+        setOtpCode(simulatedOtp);
+      } else {
+        Alert.alert('Erreur', data.message || 'Échec de la demande de retrait.');
+      }
+    } catch (error) {
+      console.error("Erreur lors de la demande de retrait :", error);
+      Alert.alert('Erreur', error.message || 'Impossible de traiter la demande de retrait.');
+    }
+  };
+
+  // Valider l'OTP
+  const validateOtp = async () => {
+    if (!otpCode || otpCode.length !== 6) {
+      Alert.alert('Erreur', 'Veuillez entrer un code OTP valide (6 chiffres).');
+      return;
+    }
+
+    try {
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error("Session expirée. Veuillez vous reconnecter.");
+
+      // Simuler la validation OTP
+      if (otpCode === '123456') { // À remplacer par une validation réelle
+        Alert.alert(
+          'Succès',
+          `Votre retrait de ${parseInt(transactionAmount).toLocaleString()} FCFA a été initié.` +
+          '\nLe montant sera transféré sur votre compte Mobile Money dans les 24h.'
+        );
+
+        // Mettre à jour les données
         await fetchLivreurBalance();
         await fetchWalletTransactions();
         
+        // Réinitialiser les états
+        setOtpCode('');
+        setPhoneNumber('');
         setTransactionAmount('');
-        setTransactionModalVisible(false);
-        Alert.alert(
-          'Succès',
-          `Votre ${transactionType} de ${amount.toLocaleString()} FCFA a été effectué avec succès.`,
-        );
+        setOtpModalVisible(false);
+        setPendingWithdrawalId(null);
       } else {
-        Alert.alert('Erreur', data.message || 'Échec de la transaction.');
+        Alert.alert('Erreur', 'Code OTP incorrect. Veuillez réessayer.');
       }
     } catch (error) {
-      console.error("Erreur lors de la transaction :", error);
-      Alert.alert('Erreur', error.message || 'Impossible d\'effectuer la transaction. Veuillez réessayer.');
+      console.error("Erreur lors de la validation OTP :", error);
+      Alert.alert('Erreur', 'Impossible de valider le code OTP.');
     }
   };
 
   // Composant TransactionCard
-  // Composant TransactionCard corrigé
-const TransactionCard = ({ transaction }) => {
-  // Déterminer les couleurs et icônes selon le type
-  const getTransactionConfig = (type) => {
-    switch (type) {
-      case 'credit':
-      case 'recharge':
-        return {
-          icon: 'add-circle-outline',
-          color: '#2E7D32',
-          label: 'Crédit',
-          sign: '+'
-        };
-      case 'debit':
-      case 'retrait':
-        return {
-          icon: 'remove-circle-outline',
-          color: '#E53935',
-          label: 'Débit',
-          sign: '-'
-        };
-      default:
-        return {
-          icon: 'swap-horizontal-outline',
-          color: '#FF9800',
-          label: 'Transaction',
-          sign: ''
-        };
-    }
-  };
+  const TransactionCard = ({ transaction }) => {
+    const getTransactionConfig = (type) => {
+      switch (type) {
+        case 'credit':
+        case 'recharge':
+          return {
+            icon: 'add-circle-outline',
+            color: '#2E7D32',
+            label: 'Crédit',
+            sign: '+'
+          };
+        case 'debit':
+        case 'retrait':
+          return {
+            icon: 'remove-circle-outline',
+            color: '#E53935',
+            label: 'Débit',
+            sign: '-'
+          };
+        default:
+          return {
+            icon: 'swap-horizontal-outline',
+            color: '#FF9800',
+            label: 'Transaction',
+            sign: ''
+          };
+      }
+    };
 
-  const config = getTransactionConfig(transaction.type);
+    const config = getTransactionConfig(transaction.type);
 
-  return (
-    <TouchableOpacity
-      style={styles.transactionCard}
-      onPress={() => {
-        setSelectedTransaction(transaction);
-        setDetailModalVisible(true);
-      }}
-    >
-      <View style={styles.transactionHeader}>
-        <View style={[
-          styles.transactionIcon,
-          { backgroundColor: config.color }
-        ]}>
-          <Ionicons
-            name={config.icon}
-            size={20}
-            color="#fff"
-          />
-        </View>
-        <View style={styles.transactionDetails}>
-          <Text style={styles.transactionType}>
-            {config.label}
-          </Text>
-          <Text style={styles.transactionDate}>{transaction.date}</Text>
-          {transaction.description ? (
-            <Text style={styles.transactionDescription} numberOfLines={1}>
-              {transaction.description}
-            </Text>
-          ) : null}
-        </View>
-        <Text style={[
-          styles.transactionAmount,
-          { color: config.color }
-        ]}>
-          {config.sign}{transaction.amount.toLocaleString()} FCFA
-        </Text>
-      </View>
-      <View style={styles.transactionFooter}>
-        <View style={styles.transactionStatus}>
-          <Text style={[
-            styles.transactionStatusText,
-            { color: transaction.status === 'completed' ? '#2E7D32' : '#FF9800' }
+    return (
+      <TouchableOpacity
+        style={styles.transactionCard}
+        onPress={() => {
+          setSelectedTransaction(transaction);
+          setDetailModalVisible(true);
+        }}
+      >
+        <View style={styles.transactionHeader}>
+          <View style={[
+            styles.transactionIcon,
+            { backgroundColor: config.color }
           ]}>
-            {transaction.status === 'completed' ? 'Terminé' : 'En attente'}
+            <Ionicons
+              name={config.icon}
+              size={20}
+              color="#fff"
+            />
+          </View>
+          <View style={styles.transactionDetails}>
+            <Text style={styles.transactionType}>
+              {config.label}
+            </Text>
+            <Text style={styles.transactionDate}>{transaction.date}</Text>
+            {transaction.description ? (
+              <Text style={styles.transactionDescription} numberOfLines={1}>
+                {transaction.description}
+              </Text>
+            ) : null}
+          </View>
+          <Text style={[
+            styles.transactionAmount,
+            { color: config.color }
+          ]}>
+            {config.sign}{transaction.amount.toLocaleString()} FCFA
           </Text>
         </View>
-        <Text style={styles.transactionMethod}>{transaction.method}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-  // Méthodes de paiement
-  const paymentMethods = [
-    { key: 'mobile_money', label: 'Mobile Money', icon: 'phone-portrait-outline' },
-    { key: 'cash', label: 'Espèces', icon: 'cash-outline' },
-    { key: 'card', label: 'Carte bancaire', icon: 'card-outline' },
-  ];
+        <View style={styles.transactionFooter}>
+          <View style={styles.transactionStatus}>
+            <Text style={[
+              styles.transactionStatusText,
+              { color: transaction.status === 'completed' ? '#2E7D32' : '#FF9800' }
+            ]}>
+              {transaction.status === 'completed' ? 'Terminé' : 'En attente'}
+            </Text>
+          </View>
+          <Text style={styles.transactionMethod}>{transaction.method}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
       <LinearGradient colors={['#1565C0', '#1565C0']} style={styles.header}>
-        <Text style={[styles.headerTitle, { marginTop: 15 }]}>Mon Wallet</Text>
+
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
+        <Text style={[styles.headerTitle, { marginTop: 15 }]}>Mon Wallet</Text>
+        
       </LinearGradient>
 
       {/* Solde actuel */}
@@ -491,80 +550,177 @@ const TransactionCard = ({ transaction }) => {
         )}
       </View>
 
-      {/* Modal de transaction */}
+      {/* Modal pour le retrait - version modifiée */}
       <Modal
         animationType="slide"
         transparent={true}
-        visible={transactionModalVisible}
+        visible={transactionModalVisible && transactionType === 'retrait'}
         onRequestClose={() => setTransactionModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={styles.modalScrollContent}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Retrait Mobile Money</Text>
+                <TouchableOpacity onPress={() => setTransactionModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalLabel}>Montant à retirer (FCFA)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: 5000"
+                value={transactionAmount}
+                onChangeText={(text) => {
+                  const numericValue = text.replace(/[^0-9]/g, '');
+                  setTransactionAmount(numericValue);
+                }}
+                keyboardType="numeric"
+              />
+              <Text style={styles.modalHelperText}>
+                Solde disponible: {livreurInfo.balance.toLocaleString()} FCFA
+              </Text>
+
+              <Text style={styles.modalLabel}>Opérateur Mobile Money</Text>
+              <View style={styles.operatorContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.operatorButton,
+                    selectedMobileOperator === 'orange' && styles.operatorButtonSelected
+                  ]}
+                  onPress={() => setSelectedMobileOperator('orange')}
+                >
+                  <View style={[
+                    styles.operatorIcon,
+                    { backgroundColor: '#FF6600' }
+                  ]}>
+                    <Text style={styles.operatorIconText}>O</Text>
+                  </View>
+                  <Text style={styles.operatorText}>Orange Money</Text>
+                  {selectedMobileOperator === 'orange' && (
+                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.operatorButton,
+                    selectedMobileOperator === 'moov' && styles.operatorButtonSelected
+                  ]}
+                  onPress={() => setSelectedMobileOperator('moov')}
+                >
+                  <View style={[
+                    styles.operatorIcon,
+                    { backgroundColor: '#0066CC' }
+                  ]}>
+                    <Text style={styles.operatorIconText}>M</Text>
+                  </View>
+                  <Text style={styles.operatorText}>Moov Money</Text>
+                  {selectedMobileOperator === 'moov' && (
+                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalLabel}>Numéro de téléphone</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: 0701020304"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+              />
+              <Text style={styles.modalHelperText}>
+                Le numéro doit être associé à votre compte {selectedMobileOperator === 'orange' ? 'Orange Money' : 'Moov Money'}
+              </Text>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setTransactionAmount('');
+                    setPhoneNumber('');
+                    setTransactionModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirmButton}
+                  onPress={submitWithdrawalRequest}
+                >
+                  <LinearGradient
+                    colors={['#E53935', '#D32F2F']}
+                    style={styles.modalConfirmButtonGradient}
+                  >
+                    <Text style={styles.modalConfirmButtonText}>Continuer</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal OTP */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={otpModalVisible}
+        onRequestClose={() => setOtpModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {transactionType === 'recharge' ? 'Recharger le Wallet' : 'Retirer du Wallet'}
-              </Text>
-              <TouchableOpacity onPress={() => setTransactionModalVisible(false)}>
+              <Text style={styles.modalTitle}>Validation OTP</Text>
+              <TouchableOpacity onPress={() => setOtpModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalLabel}>Montant</Text>
+
+            <Text style={styles.modalLabel}>
+              Entrez le code OTP envoyé au {phoneNumber}
+            </Text>
+            
             <TextInput
-              style={styles.modalInput}
-              placeholder="0 FCFA"
-              value={transactionAmount}
-              onChangeText={(text) => {
-                const numericValue = text.replace(/[^0-9]/g, '');
-                setTransactionAmount(numericValue);
-              }}
-              keyboardType="numeric"
+              style={styles.otpInput}
+              placeholder="000000"
+              value={otpCode}
+              onChangeText={setOtpCode}
+              keyboardType="number-pad"
+              maxLength={6}
+              textAlign="center"
+              autoFocus={true}
             />
-            <Text style={styles.modalLabel}>Méthode de paiement</Text>
-            <View style={styles.paymentMethodsContainer}>
-              {paymentMethods.map((method) => (
-                <TouchableOpacity
-                  key={method.key}
-                  style={[
-                    styles.paymentMethodButton,
-                    paymentMethod === method.key && styles.paymentMethodButtonSelected,
-                  ]}
-                  onPress={() => setPaymentMethod(method.key)}
-                >
-                  <Ionicons
-                    name={method.icon}
-                    size={20}
-                    color={paymentMethod === method.key ? '#fff' : '#2E7D32'}
-                  />
-                  <Text
-                    style={[
-                      styles.paymentMethodButtonText,
-                      paymentMethod === method.key && styles.paymentMethodButtonTextSelected,
-                    ]}
-                  >
-                    {method.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+
+            <Text style={styles.otpHelperText}>
+              Code OTP à 6 chiffres
+            </Text>
+
+            <View style={styles.otpResendContainer}>
+              <Text style={styles.otpResendText}>Vous n'avez pas reçu le code ? </Text>
+              <TouchableOpacity>
+                <Text style={styles.otpResendLink}>Renvoyer</Text>
+              </TouchableOpacity>
             </View>
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
-                onPress={() => {
-                  setTransactionAmount('');
-                  setTransactionModalVisible(false);
-                }}
+                onPress={() => setOtpModalVisible(false)}
               >
                 <Text style={styles.modalCancelButtonText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalConfirmButton}
-                onPress={handleTransaction}
+                onPress={validateOtp}
               >
                 <LinearGradient
-                  colors={transactionType === 'recharge' ? ['#2E7D32', '#388E3C'] : ['#E53935', '#D32F2F']}
+                  colors={['#2E7D32', '#388E3C']}
                   style={styles.modalConfirmButtonGradient}
                 >
-                  <Text style={styles.modalConfirmButtonText}>Confirmer</Text>
+                  <Text style={styles.modalConfirmButtonText}>Valider</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -572,7 +728,7 @@ const TransactionCard = ({ transaction }) => {
         </View>
       </Modal>
 
-      {/* Modal de détail de transaction */}
+      {/* Modal de détail de transaction (inchangé) */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -632,7 +788,6 @@ const TransactionCard = ({ transaction }) => {
   );
 };
 
-
 const styles = {
   container: {
     flex: 1,
@@ -645,11 +800,13 @@ const styles = {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 30,
   },
   headerTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
+    textAlign: 'center',
   },
   backButton: {
     padding: 4,
@@ -670,7 +827,7 @@ const styles = {
   },
   balanceAmount: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: '#1565C0',
     marginBottom: 16,
   },
@@ -697,7 +854,7 @@ const styles = {
   balanceActionButtonText: {
     color: '#fff',
     marginLeft: 8,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   transactionsContainer: {
     flex: 1,
@@ -705,7 +862,7 @@ const styles = {
   },
   transactionsTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: '#333',
     marginBottom: 12,
   },
@@ -733,10 +890,9 @@ const styles = {
     flex: 1,
     marginLeft: 12,
   },
-  
   transactionType: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: '#333',
   },
   transactionDate: {
@@ -745,7 +901,7 @@ const styles = {
   },
   transactionAmount: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   transactionFooter: {
     flexDirection: 'row',
@@ -759,7 +915,7 @@ const styles = {
   },
   transactionStatusText: {
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   transactionMethod: {
     fontSize: 12,
@@ -818,11 +974,17 @@ const styles = {
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
   modalContent: {
     width: width * 0.9,
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 20,
+    maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -832,52 +994,95 @@ const styles = {
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: '#333',
   },
   modalLabel: {
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
+    marginTop: 12,
+  },
+  modalHelperText: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
   modalInput: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 5,
     padding: 12,
-    marginBottom: 16,
     fontSize: 16,
   },
-  paymentMethodsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+  operatorContainer: {
+    marginVertical: 8,
   },
-  paymentMethodButton: {
+  operatorButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ddd',
-    flex: 1,
-    marginHorizontal: 4,
+    marginBottom: 8,
   },
-  paymentMethodButtonSelected: {
-    backgroundColor: '#1565C0',
+  operatorButtonSelected: {
     borderColor: '#1565C0',
+    backgroundColor: 'rgba(21, 101, 192, 0.1)',
   },
-  paymentMethodButtonText: {
-    marginLeft: 8,
-    color: '#1565C0',
+  operatorIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  paymentMethodButtonTextSelected: {
+  operatorIconText: {
     color: '#fff',
+    fontWeight: 'bold',
+  },
+  operatorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: '#1565C0',
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 24,
+    letterSpacing: 8,
+    marginVertical: 16,
+  },
+  otpHelperText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  otpResendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  otpResendText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  otpResendLink: {
+    fontSize: 12,
+    color: '#1565C0',
+    fontWeight: 'bold',
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: 20,
   },
   modalCancelButton: {
     flex: 1,
@@ -889,7 +1094,7 @@ const styles = {
   },
   modalCancelButtonText: {
     color: '#666',
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   modalConfirmButton: {
     flex: 1,
@@ -903,7 +1108,7 @@ const styles = {
   },
   modalConfirmButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   modalDetailRow: {
     flexDirection: 'row',
@@ -922,6 +1127,11 @@ const styles = {
   },
   listContent: {
     paddingBottom: 16,
+  },
+  transactionDescription: {
+    fontSize: 12,
+    color: '#718096',
+    marginTop: 2,
   },
 };
 

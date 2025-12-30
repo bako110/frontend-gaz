@@ -11,11 +11,15 @@ import {
   Dimensions,
   StatusBar,
   StyleSheet,
+  TextInput,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import * as Print from 'expo-print';
+import { shareAsync } from 'expo-sharing';
 import { API_BASE_URL } from '@/service/config';
 import ClientFooter from './ClientFooter';
 import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
@@ -32,18 +36,29 @@ const ORDER_STATUS = {
 
 export default function HistoriqueScreen() {
   const [historiqueCommandes, setHistoriqueCommandes] = useState([]);
-  const [clientInfo, setClientInfo] = useState({ _id: null });
+  const [filteredCommandes, setFilteredCommandes] = useState([]);
+  const [clientInfo, setClientInfo] = useState({ _id: null, name: '', email: '', phone: '' });
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCommande, setSelectedCommande] = useState(null);
   const [validationCode, setValidationCode] = useState(null);
   const [loadingCode, setLoadingCode] = useState(false);
+  
+  // États pour la recherche et filtrage
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+  
   const router = useRouter();
 
   useEffect(() => {
     loadUserData();
   }, []);
+
+  useEffect(() => {
+    filterCommandes();
+  }, [historiqueCommandes, searchQuery, filterStatus]);
 
   const loadUserData = async () => {
     try {
@@ -55,9 +70,15 @@ export default function HistoriqueScreen() {
       const user = userProfileStr ? parsedData.user : parsedData;
 
       const userId = parsedData?.profile?._id || user?._id;
+      const userName = parsedData?.profile?.name || user?.name || '';
+      const userEmail = parsedData?.profile?.email || user?.email || '';
+      const userPhone = parsedData?.profile?.phone || user?.phone || '';
       
       setClientInfo({
         _id: userId,
+        name: userName,
+        email: userEmail,
+        phone: userPhone,
       });
 
       if (userId) {
@@ -117,10 +138,15 @@ export default function HistoriqueScreen() {
             validationCode: order.validationCode || order.orderCode,
             isDelivery: order.isDelivery || false,
             distributorId: order.distributorId?._id || order.distributorId,
+            clientPhone: order.clientPhone || '',
+            clientName: order.clientName || '',
+            products: order.products || [],
           }));
           setHistoriqueCommandes(formattedOrders);
+          setFilteredCommandes(formattedOrders);
         } else {
           setHistoriqueCommandes([]);
+          setFilteredCommandes([]);
         }
       } else {
         const errorText = await response.text();
@@ -131,7 +157,33 @@ export default function HistoriqueScreen() {
       console.error("Erreur récupération historique:", error);
       Alert.alert('Erreur', 'Impossible de charger l\'historique des commandes');
       setHistoriqueCommandes([]);
+      setFilteredCommandes([]);
     }
+  };
+
+  const filterCommandes = () => {
+    let filtered = [...historiqueCommandes];
+    
+    // Filtrer par recherche
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((commande) => 
+        (commande.orderId && commande.orderId.toLowerCase().includes(query)) ||
+        (commande.orderNumber && commande.orderNumber.toLowerCase().includes(query)) ||
+        (commande.produit && commande.produit.toLowerCase().includes(query)) ||
+        (commande.distributorName && commande.distributorName.toLowerCase().includes(query)) ||
+        (commande.clientName && commande.clientName.toLowerCase().includes(query)) ||
+        (commande.clientPhone && commande.clientPhone.toLowerCase().includes(query)) ||
+        (commande.statut && getStatutText(commande.statut).toLowerCase().includes(query))
+      );
+    }
+    
+    // Filtrer par statut
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter((commande) => commande.statut === filterStatus);
+    }
+    
+    setFilteredCommandes(filtered);
   };
 
   const fetchValidationCode = async (orderId) => {
@@ -153,6 +205,16 @@ export default function HistoriqueScreen() {
         const data = await response.json();
         console.log('Validation Code API Response:', data);
         
+        // Vérifier si la commande est livrée ou annulée
+        const selectedCommande = historiqueCommandes.find(cmd => cmd.id === orderId);
+        
+        if (selectedCommande && 
+            (selectedCommande.statut === ORDER_STATUS.DELIVERED || 
+             selectedCommande.statut === ORDER_STATUS.CANCELLED)) {
+          setValidationCode(null);
+          return;
+        }
+        
         if (data.success && data.validationCode) {
           setValidationCode(data.validationCode);
         } else {
@@ -165,7 +227,6 @@ export default function HistoriqueScreen() {
       }
     } catch (error) {
       console.error("Erreur récupération code de validation:", error);
-      Alert.alert('Erreur', error.message || 'Impossible de charger le code de validation');
       setValidationCode(null);
     } finally {
       setLoadingCode(false);
@@ -229,6 +290,11 @@ export default function HistoriqueScreen() {
     setModalVisible(true);
     setValidationCode(null);
     
+    // Ne pas charger le code pour les commandes livrées ou annulées
+    if (commande.statut === ORDER_STATUS.DELIVERED || commande.statut === ORDER_STATUS.CANCELLED) {
+      return;
+    }
+    
     await fetchValidationCode(commande.id);
   };
 
@@ -238,6 +304,242 @@ export default function HistoriqueScreen() {
       await fetchHistorique(clientInfo._id);
     }
     setRefreshing(false);
+  };
+
+  // Fonction pour générer et imprimer un PDF
+  const generateAndPrintPDF = async (commande) => {
+    try {
+      Alert.alert(
+        'Génération PDF',
+        'Voulez-vous générer un PDF pour cette commande ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { 
+            text: 'Générer PDF', 
+            onPress: async () => {
+              try {
+                // Générer le contenu HTML pour le PDF
+                const htmlContent = generatePDFHTML(commande);
+                
+                // Générer le PDF
+                const { uri } = await Print.printToFileAsync({
+                  html: htmlContent,
+                  base64: false,
+                });
+                
+                // Partager/ouvrir le PDF
+                await shareAsync(uri, {
+                  UTI: '.pdf',
+                  mimeType: 'application/pdf',
+                });
+                
+                Alert.alert('Succès', 'PDF généré avec succès !');
+              } catch (error) {
+                console.error('Erreur génération PDF:', error);
+                Alert.alert('Erreur', 'Impossible de générer le PDF');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Erreur impression PDF:', error);
+      Alert.alert('Erreur', 'Impossible d\'imprimer la commande');
+    }
+  };
+
+  // Fonction pour générer le HTML du PDF
+  const generatePDFHTML = (commande) => {
+    const currentDate = new Date().toLocaleDateString('fr-FR');
+    const currentTime = new Date().toLocaleTimeString('fr-FR');
+    
+    const productsHTML = commande.products && Array.isArray(commande.products) 
+      ? commande.products.map(product => `
+        <tr>
+          <td>${product.name || 'Produit'}</td>
+          <td>${product.type || 'Standard'}</td>
+          <td>${product.quantity || 1}</td>
+          <td>${(product.price || 0).toLocaleString()} FCFA</td>
+          <td>${(product.total || 0).toLocaleString()} FCFA</td>
+        </tr>
+      `).join('')
+      : `
+        <tr>
+          <td>${commande.produit}</td>
+          <td>${commande.type || 'Standard'}</td>
+          <td>${commande.quantite}</td>
+          <td>${(commande.total / commande.quantite).toLocaleString()} FCFA</td>
+          <td>${commande.total.toLocaleString()} FCFA</td>
+        </tr>
+      `;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            color: #333;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2E7D32;
+            padding-bottom: 20px;
+          }
+          .header h1 {
+            color: #2E7D32;
+            margin: 0;
+            font-size: 24px;
+          }
+          .header h2 {
+            color: #666;
+            margin: 5px 0;
+            font-size: 18px;
+          }
+          .info-section {
+            margin-bottom: 30px;
+          }
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+          }
+          .info-card {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2E7D32;
+          }
+          .info-card h3 {
+            margin: 0 0 10px 0;
+            color: #2E7D32;
+            font-size: 16px;
+          }
+          .info-card p {
+            margin: 5px 0;
+            font-size: 14px;
+          }
+          .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+          }
+          .products-table th {
+            background: #2E7D32;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+          }
+          .products-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+          }
+          .products-table tr:nth-child(even) {
+            background: #f9f9f9;
+          }
+          .total-section {
+            text-align: right;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #2E7D32;
+          }
+          .total-amount {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2E7D32;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .delivered { background: #4CAF50; color: white; }
+          .cancelled { background: #E53935; color: white; }
+          .delivery { background: #2E7D32; color: white; }
+          .confirmed { background: #FF9800; color: white; }
+          .pending { background: #757575; color: white; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Reçu de Commande</h1>
+          <h2>${commande.orderId}</h2>
+          <p>Date d'émission: ${currentDate} à ${currentTime}</p>
+        </div>
+
+        <div class="info-section">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3>Informations Client</h3>
+              <p><strong>Nom:</strong> ${clientInfo.name || 'Non spécifié'}</p>
+              <p><strong>Téléphone:</strong> ${clientInfo.phone || 'Non spécifié'}</p>
+              <p><strong>Email:</strong> ${clientInfo.email || 'Non spécifié'}</p>
+            </div>
+            <div class="info-card">
+              <h3>Informations Commande</h3>
+              <p><strong>Date commande:</strong> ${commande.date}</p>
+              <p><strong>Statut:</strong> 
+                <span class="status-badge ${commande.statut}">
+                  ${getStatutText(commande.statut)}
+                </span>
+              </p>
+              <p><strong>Type:</strong> ${commande.isDelivery ? 'Livraison' : 'Retrait sur place'}</p>
+            </div>
+          </div>
+          
+          <div class="info-card">
+            <h3>Informations Distributeur</h3>
+            <p><strong>Distributeur:</strong> ${commande.distributorName}</p>
+            <p><strong>Adresse:</strong> ${commande.address}</p>
+          </div>
+        </div>
+
+        <h3>Détails des Produits</h3>
+        <table class="products-table">
+          <thead>
+            <tr>
+              <th>Produit</th>
+              <th>Type</th>
+              <th>Quantité</th>
+              <th>Prix Unitaire</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productsHTML}
+          </tbody>
+        </table>
+
+        <div class="total-section">
+          <h3>Total Général: <span class="total-amount">${commande.total.toLocaleString()} FCFA</span></h3>
+          <p>TVA incluse</p>
+        </div>
+
+        <div class="footer">
+          <p>Merci pour votre confiance !</p>
+          <p>Ce document a été généré automatiquement le ${currentDate} à ${currentTime}</p>
+          <p>Pour toute question, contactez le service client</p>
+        </div>
+      </body>
+      </html>
+    `;
   };
 
   const getStatutColor = (statut) => {
@@ -273,6 +575,18 @@ export default function HistoriqueScreen() {
     }
   };
 
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'all': return 'Tout';
+      case ORDER_STATUS.PENDING: return 'En attente';
+      case ORDER_STATUS.CONFIRMED: return 'Confirmé';
+      case ORDER_STATUS.IN_DELIVERY: return 'En livraison';
+      case ORDER_STATUS.DELIVERED: return 'Livré';
+      case ORDER_STATUS.CANCELLED: return 'Annulé';
+      default: return status;
+    }
+  };
+
   const HistoryCard = ({ commande }) => (
     <TouchableOpacity 
       style={styles.historyCard}
@@ -294,12 +608,25 @@ export default function HistoriqueScreen() {
               {getStatutText(commande.statut)}
             </Text>
           </View>
-          {commande.validationCode && (
+          {/* Cacher le badge QR pour les commandes livrées/annulées */}
+          {commande.validationCode && 
+           commande.statut !== ORDER_STATUS.DELIVERED && 
+           commande.statut !== ORDER_STATUS.CANCELLED && (
             <View style={styles.qrBadge}>
               <Ionicons name="key-outline" size={12} color="#2E7D32" />
               <Text style={styles.qrBadgeText}>QR</Text>
             </View>
           )}
+          {/* Bouton impression PDF */}
+          <TouchableOpacity 
+            style={styles.printButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              generateAndPrintPDF(commande);
+            }}
+          >
+            <Ionicons name="print-outline" size={16} color="#2E7D32" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -403,117 +730,144 @@ export default function HistoriqueScreen() {
                       <Text style={styles.modernInfoValue}>{selectedCommande.date}</Text>
                     </View>
                   </View>
+                  
+                  {/* Bouton impression PDF dans le modal */}
+                  <TouchableOpacity 
+                    style={styles.pdfButton}
+                    onPress={() => {
+                      setModalVisible(false);
+                      generateAndPrintPDF(selectedCommande);
+                    }}
+                  >
+                    <LinearGradient
+                      colors={['#2196F3', '#1976D2']}
+                      style={styles.pdfButtonGradient}
+                    >
+                      <Ionicons name="document-text-outline" size={20} color="#fff" />
+                      <Text style={styles.pdfButtonText}>Générer PDF</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
 
-            <View style={styles.modernValidationSection}>
-              <View style={styles.modernSectionHeader}>
-                <Ionicons name="key-outline" size={24} color="#2E7D32" />
-                <Text style={styles.modernSectionTitle}>Code de Validation</Text>
-              </View>
-              <Text style={styles.modernSectionDescription}>
-                {selectedCommande?.isDelivery 
-                  ? '🚚 Donnez ce code au livreur pour confirmer la livraison'
-                  : '🏪 Utilisez ce code pour confirmer votre retrait sur place'}
-              </Text>
-
-              {loadingCode ? (
-                <View style={styles.modernCodeLoading}>
-                  <ActivityIndicator size="large" color="#2E7D32" />
-                  <Text style={styles.modernLoadingText}>Chargement du code...</Text>
+            {/* Section code de validation - CACHÉE pour les commandes livrées/annulées */}
+            {selectedCommande && 
+             selectedCommande.statut !== ORDER_STATUS.DELIVERED && 
+             selectedCommande.statut !== ORDER_STATUS.CANCELLED && (
+              <View style={styles.modernValidationSection}>
+                <View style={styles.modernSectionHeader}>
+                  <Ionicons name="key-outline" size={24} color="#2E7D32" />
+                  <Text style={styles.modernSectionTitle}>Code de Validation</Text>
                 </View>
-              ) : validationCode ? (
-                <LinearGradient
-                  colors={['#E8F5E9', '#C8E6C9']}
-                  style={styles.modernCodeContainer}
-                >
-                  <View style={styles.modernCodeDisplay}>
-                    <Text style={styles.modernCodeText}>{validationCode}</Text>
+                <Text style={styles.modernSectionDescription}>
+                  {selectedCommande?.isDelivery 
+                    ? '🚚 Donnez ce code au livreur pour confirmer la livraison'
+                    : '🏪 Utilisez ce code pour confirmer votre retrait sur place'}
+                </Text>
+
+                {loadingCode ? (
+                  <View style={styles.modernCodeLoading}>
+                    <ActivityIndicator size="large" color="#2E7D32" />
+                    <Text style={styles.modernLoadingText}>Chargement du code...</Text>
                   </View>
-                  <View style={styles.modernCodeFooter}>
-                    <Ionicons name="shield-checkmark" size={16} color="#2E7D32" />
-                    <Text style={styles.modernCodeId}>
-                      {selectedCommande?.orderId}
-                    </Text>
-                  </View>
-                </LinearGradient>
-              ) : (
-                <View style={styles.modernCodeError}>
-                  <Ionicons name="alert-circle-outline" size={48} color="#E53935" />
-                  <Text style={styles.modernErrorText}>Code non disponible</Text>
-                  <TouchableOpacity 
-                    style={styles.modernRetryButton}
-                    onPress={() => selectedCommande && fetchValidationCode(selectedCommande.id)}
+                ) : validationCode ? (
+                  <LinearGradient
+                    colors={['#E8F5E9', '#C8E6C9']}
+                    style={styles.modernCodeContainer}
                   >
-                    <Ionicons name="refresh" size={18} color="#fff" />
-                    <Text style={styles.modernRetryButtonText}>Réessayer</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.modernInstructions}>
-              <View style={styles.modernInstructionsHeader}>
-                <Ionicons name="information-circle" size={22} color="#1976D2" />
-                <Text style={styles.modernInstructionsTitle}>Instructions</Text>
+                    <View style={styles.modernCodeDisplay}>
+                      <Text style={styles.modernCodeText}>{validationCode}</Text>
+                    </View>
+                    <View style={styles.modernCodeFooter}>
+                      <Ionicons name="shield-checkmark" size={16} color="#2E7D32" />
+                      <Text style={styles.modernCodeId}>
+                        {selectedCommande?.orderId}
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                ) : (
+                  <View style={styles.modernCodeError}>
+                    <Ionicons name="alert-circle-outline" size={48} color="#E53935" />
+                    <Text style={styles.modernErrorText}>Code non disponible</Text>
+                    <TouchableOpacity 
+                      style={styles.modernRetryButton}
+                      onPress={() => selectedCommande && fetchValidationCode(selectedCommande.id)}
+                    >
+                      <Ionicons name="refresh" size={18} color="#fff" />
+                      <Text style={styles.modernRetryButtonText}>Réessayer</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-              {selectedCommande?.isDelivery ? (
-                <>
-                  <View style={styles.modernInstructionItem}>
-                    <View style={styles.modernInstructionNumber}>
-                      <Text style={styles.modernInstructionNumberText}>1</Text>
+            )}
+
+            {/* Section instructions - CACHÉE pour les commandes livrées/annulées */}
+            {selectedCommande && 
+             selectedCommande.statut !== ORDER_STATUS.DELIVERED && 
+             selectedCommande.statut !== ORDER_STATUS.CANCELLED && (
+              <View style={styles.modernInstructions}>
+                <View style={styles.modernInstructionsHeader}>
+                  <Ionicons name="information-circle" size={22} color="#1976D2" />
+                  <Text style={styles.modernInstructionsTitle}>Instructions</Text>
+                </View>
+                {selectedCommande?.isDelivery ? (
+                  <>
+                    <View style={styles.modernInstructionItem}>
+                      <View style={styles.modernInstructionNumber}>
+                        <Text style={styles.modernInstructionNumberText}>1</Text>
+                      </View>
+                      <Text style={styles.modernInstructionText}>
+                        Donnez ce code au livreur lors de la livraison
+                      </Text>
                     </View>
-                    <Text style={styles.modernInstructionText}>
-                      Donnez ce code au livreur lors de la livraison
-                    </Text>
-                  </View>
-                  <View style={styles.modernInstructionItem}>
-                    <View style={styles.modernInstructionNumber}>
-                      <Text style={styles.modernInstructionNumberText}>2</Text>
+                    <View style={styles.modernInstructionItem}>
+                      <View style={styles.modernInstructionNumber}>
+                        <Text style={styles.modernInstructionNumberText}>2</Text>
+                      </View>
+                      <Text style={styles.modernInstructionText}>
+                        Le livreur saisira le code pour confirmer la livraison
+                      </Text>
                     </View>
-                    <Text style={styles.modernInstructionText}>
-                      Le livreur saisira le code pour confirmer la livraison
-                    </Text>
-                  </View>
-                  <View style={styles.modernInstructionItem}>
-                    <View style={styles.modernInstructionNumber}>
-                      <Text style={styles.modernInstructionNumberText}>3</Text>
+                    <View style={styles.modernInstructionItem}>
+                      <View style={styles.modernInstructionNumber}>
+                        <Text style={styles.modernInstructionNumberText}>3</Text>
+                      </View>
+                      <Text style={styles.modernInstructionText}>
+                        Conservez ce code jusqu'à la livraison complète
+                      </Text>
                     </View>
-                    <Text style={styles.modernInstructionText}>
-                      Conservez ce code jusqu'à la livraison complète
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.modernInstructionItem}>
-                    <View style={styles.modernInstructionNumber}>
-                      <Text style={styles.modernInstructionNumberText}>1</Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.modernInstructionItem}>
+                      <View style={styles.modernInstructionNumber}>
+                        <Text style={styles.modernInstructionNumberText}>1</Text>
+                      </View>
+                      <Text style={styles.modernInstructionText}>
+                        Allez chercher votre produit au distributeur
+                      </Text>
                     </View>
-                    <Text style={styles.modernInstructionText}>
-                      Allez chercher votre produit au distributeur
-                    </Text>
-                  </View>
-                  <View style={styles.modernInstructionItem}>
-                    <View style={styles.modernInstructionNumber}>
-                      <Text style={styles.modernInstructionNumberText}>2</Text>
+                    <View style={styles.modernInstructionItem}>
+                      <View style={styles.modernInstructionNumber}>
+                        <Text style={styles.modernInstructionNumberText}>2</Text>
+                      </View>
+                      <Text style={styles.modernInstructionText}>
+                        Donnez ce code pour confirmer votre retrait
+                      </Text>
                     </View>
-                    <Text style={styles.modernInstructionText}>
-                      Donnez ce code pour confirmer votre retrait
-                    </Text>
-                  </View>
-                  <View style={styles.modernInstructionItem}>
-                    <View style={styles.modernInstructionNumber}>
-                      <Text style={styles.modernInstructionNumberText}>3</Text>
+                    <View style={styles.modernInstructionItem}>
+                      <View style={styles.modernInstructionNumber}>
+                        <Text style={styles.modernInstructionNumberText}>3</Text>
+                      </View>
+                      <Text style={styles.modernInstructionText}>
+                        Appuyez sur "Confirmer Retrait" pour finaliser
+                      </Text>
                     </View>
-                    <Text style={styles.modernInstructionText}>
-                      Appuyez sur "Confirmer Retrait" pour finaliser
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
+                  </>
+                )}
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.modernModalFooter}>
@@ -559,6 +913,82 @@ export default function HistoriqueScreen() {
     </Modal>
   );
 
+  const renderHeader = () => (
+    <LinearGradient colors={['#2E7D32', '#388E3C']} style={styles.header}>
+      <View style={styles.headerTop}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Historique des Commandes</Text>
+        <TouchableOpacity 
+          style={styles.filterToggleButton}
+          onPress={() => setShowFilters(!showFilters)}
+        >
+          <Ionicons 
+            name={showFilters ? "filter" : "filter-outline"} 
+            size={24} 
+            color="#fff" 
+          />
+        </TouchableOpacity>
+      </View>
+      
+      {/* Barre de recherche */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search-outline" size={20} color="#666" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher par ID, produit, distributeur..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor="#999"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity 
+            onPress={() => setSearchQuery('')}
+            style={styles.clearButton}
+          >
+            <Ionicons name="close-circle" size={20} color="#666" />
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      {/* Filtres (conditionnel) */}
+      {showFilters && (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterContainer}
+        >
+          {[
+            { key: 'all', label: 'Tout' },
+            { key: ORDER_STATUS.PENDING, label: 'En attente' },
+            { key: ORDER_STATUS.CONFIRMED, label: 'Confirmé' },
+            { key: ORDER_STATUS.IN_DELIVERY, label: 'En livraison' },
+            { key: ORDER_STATUS.DELIVERED, label: 'Livré' },
+            { key: ORDER_STATUS.CANCELLED, label: 'Annulé' },
+          ].map((filter) => (
+            <TouchableOpacity
+              key={filter.key}
+              style={[
+                styles.filterChip,
+                filterStatus === filter.key && styles.filterChipActive
+              ]}
+              onPress={() => setFilterStatus(filter.key)}
+            >
+              <Text style={[
+                styles.filterText,
+                filterStatus === filter.key && styles.filterTextActive
+              ]}>
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+    </LinearGradient>
+  );
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -571,36 +1001,58 @@ export default function HistoriqueScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
-      <LinearGradient colors={['#2E7D32', '#388E3C']} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Historique des Commandes</Text>
-          <View style={{ width: 24 }} />
-        </View>
-      </LinearGradient>
+      
+      {renderHeader()}
 
       <FlatList
-        data={historiqueCommandes}
+        data={filteredCommandes}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <HistoryCard commande={item} />}
         refreshing={refreshing}
         onRefresh={onRefresh}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={() => (
+          <View style={styles.listHeader}>
+            <Text style={styles.resultsCount}>
+              {filteredCommandes.length} commande{filteredCommandes.length !== 1 ? 's' : ''} trouvée{filteredCommandes.length !== 1 ? 's' : ''}
+              {filterStatus !== 'all' && ` • ${getStatusLabel(filterStatus)}`}
+              {searchQuery.trim() && ` • "${searchQuery}"`}
+            </Text>
+          </View>
+        )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={80} color="#CBD5E0" />
-            <Text style={styles.emptyTitle}>Aucune commande</Text>
-            <Text style={styles.emptySubtitle}>
-              Vos commandes apparaîtront ici une fois passées
+            <Ionicons 
+              name={searchQuery.trim() || filterStatus !== 'all' ? "search-outline" : "document-text-outline"} 
+              size={80} 
+              color="#CBD5E0" 
+            />
+            <Text style={styles.emptyTitle}>
+              {searchQuery.trim() 
+                ? `Aucune commande trouvée pour "${searchQuery}"`
+                : filterStatus !== 'all'
+                ? `Aucune commande ${getStatusLabel(filterStatus).toLowerCase()}`
+                : 'Aucune commande'
+              }
             </Text>
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={loadUserData}
-            >
-              <Text style={styles.retryButtonText}>Réessayer</Text>
-            </TouchableOpacity>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery.trim() || filterStatus !== 'all'
+                ? 'Essayez avec d\'autres termes ou réinitialisez les filtres'
+                : 'Vos commandes apparaîtront ici une fois passées'
+              }
+            </Text>
+            {(searchQuery.trim() || filterStatus !== 'all') && (
+              <TouchableOpacity 
+                style={styles.resetButton}
+                onPress={() => {
+                  setSearchQuery('');
+                  setFilterStatus('all');
+                }}
+              >
+                <Ionicons name="refresh" size={18} color="#fff" />
+                <Text style={styles.resetButtonText}>Réinitialiser les filtres</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
         contentContainerStyle={[styles.listContent, { paddingBottom: 110 }]}
@@ -627,12 +1079,18 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 15,
   },
   backButton: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  filterToggleButton: {
     padding: 8,
     borderRadius: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -642,16 +1100,89 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
+    flex: 1,
+    marginHorizontal: 10,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    paddingVertical: 2,
+  },
+  clearButton: {
+    padding: 5,
+    marginLeft: 10,
+  },
+  filterScroll: {
+    marginBottom: 5,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+  },
+  filterChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  filterChipActive: {
+    backgroundColor: '#fff',
+    borderColor: '#fff',
+  },
+  filterText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#2E7D32',
+  },
+  listHeader: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  resultsCount: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   listContent: {
     flexGrow: 1,
-    padding: 16,
   },
   historyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginHorizontal: 16,
+    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -659,7 +1190,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: '#F1F5F9',
-    position: 'relative',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -713,6 +1243,13 @@ const styles = StyleSheet.create({
     marginLeft: 3,
     textTransform: 'uppercase',
   },
+  printButton: {
+    padding: 5,
+    borderRadius: 8,
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#2E7D32',
+  },
   cardBody: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -765,13 +1302,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
+    paddingHorizontal: 20,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#4A5568',
     marginTop: 16,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 14,
@@ -779,6 +1318,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  resetButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   retryButton: {
     backgroundColor: '#2E7D32',
@@ -902,6 +1455,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
+  },
+  pdfButton: {
+    marginTop: 15,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  pdfButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  pdfButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   modernValidationSection: {
     marginBottom: 20,

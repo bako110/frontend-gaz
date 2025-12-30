@@ -23,12 +23,19 @@ import { generateOrderId } from '@/utils/orderUtils';
 
 const { width } = Dimensions.get('window');
 
-export default function NewOrderScreen() {
+export default function NewOrderScreen({ navigation }) {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [inDeliveryOrders, setInDeliveryOrders] = useState([]);
   const [confirmedOrders, setConfirmedOrders] = useState([]);
   const [completedOrders, setCompletedOrders] = useState([]);
-  const [otherOrders, setOtherOrders] = useState([]);
+  const [cancelledOrders, setCancelledOrders] = useState([]);
+  const [filteredPendingOrders, setFilteredPendingOrders] = useState([]);
+  const [filteredConfirmedOrders, setFilteredConfirmedOrders] = useState([]);
+  const [filteredInDeliveryOrders, setFilteredInDeliveryOrders] = useState([]);
+  const [filteredCompletedOrders, setFilteredCompletedOrders] = useState([]);
+  const [filteredCancelledOrders, setFilteredCancelledOrders] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,39 +127,56 @@ export default function NewOrderScreen() {
         });
       };
 
+      let pending = [], inDelivery = [], confirmed = [], completed = [], cancelled = [];
+
       if (pendingResult.status === 'fulfilled') {
-        setPendingOrders(processOrders(pendingResult.value?.orders || []));
+        pending = processOrders(pendingResult.value?.orders || []);
+        setPendingOrders(pending);
+        setFilteredPendingOrders(pending);
       } else {
         console.error('Erreur commandes en attente:', pendingResult.reason);
         setPendingOrders([]);
+        setFilteredPendingOrders([]);
       }
       
       if (inDeliveryResult.status === 'fulfilled') {
-        setInDeliveryOrders(processOrders(inDeliveryResult.value?.orders || []));
+        inDelivery = processOrders(inDeliveryResult.value?.orders || []);
+        setInDeliveryOrders(inDelivery);
+        setFilteredInDeliveryOrders(inDelivery);
       } else {
         console.error('Erreur commandes en livraison:', inDeliveryResult.reason);
         setInDeliveryOrders([]);
+        setFilteredInDeliveryOrders([]);
       }
       
       if (confirmedResult.status === 'fulfilled') {
-        setConfirmedOrders(processOrders(confirmedResult.value?.orders || []));
+        confirmed = processOrders(confirmedResult.value?.orders || []);
+        setConfirmedOrders(confirmed);
+        setFilteredConfirmedOrders(confirmed);
       } else {
         console.error('Erreur commandes confirmées:', confirmedResult.reason);
         setConfirmedOrders([]);
+        setFilteredConfirmedOrders([]);
       }
       
       if (completedResult.status === 'fulfilled') {
-        setCompletedOrders(processOrders(completedResult.value?.orders || []));
+        completed = processOrders(completedResult.value?.orders || []);
+        setCompletedOrders(completed);
+        setFilteredCompletedOrders(completed);
       } else {
         console.error('Erreur commandes terminées:', completedResult.reason);
         setCompletedOrders([]);
+        setFilteredCompletedOrders([]);
       }
       
       if (cancelledResult.status === 'fulfilled') {
-        setOtherOrders(processOrders(cancelledResult.value?.orders || []));
+        cancelled = processOrders(cancelledResult.value?.orders || []);
+        setCancelledOrders(cancelled);
+        setFilteredCancelledOrders(cancelled);
       } else {
-        console.error('Erreur autres commandes:', cancelledResult.reason);
-        setOtherOrders([]);
+        console.error('Erreur commandes annulées:', cancelledResult.reason);
+        setCancelledOrders([]);
+        setFilteredCancelledOrders([]);
       }
       
       if (driversResult.status === 'fulfilled') {
@@ -184,6 +208,51 @@ export default function NewOrderScreen() {
     fetchOrders();
   }, [fetchOrders]);
 
+  // Fonction de filtrage générique
+  const filterOrders = (orders, query, statusFilter) => {
+    let filtered = [...orders];
+    
+    // Filtrer par recherche
+    if (query.trim()) {
+      const searchTerm = query.toLowerCase();
+      filtered = filtered.filter((order) => 
+        (order.orderId && order.orderId.toLowerCase().includes(searchTerm)) ||
+        (order.clientName && order.clientName.toLowerCase().includes(searchTerm)) ||
+        (order.clientPhone && order.clientPhone.toLowerCase().includes(searchTerm)) ||
+        (order.orderNumber && order.orderNumber.toLowerCase().includes(searchTerm)) ||
+        (order._id && order._id.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    // Filtrer par statut si spécifié
+    if (statusFilter !== 'all' && statusFilter) {
+      filtered = filtered.filter((order) => order.status === statusFilter);
+    }
+    
+    return filtered;
+  };
+
+  // Appliquer le filtrage à toutes les sections
+  useEffect(() => {
+    setFilteredPendingOrders(filterOrders(pendingOrders, searchQuery, filterStatus));
+  }, [pendingOrders, searchQuery, filterStatus]);
+
+  useEffect(() => {
+    setFilteredConfirmedOrders(filterOrders(confirmedOrders, searchQuery, filterStatus));
+  }, [confirmedOrders, searchQuery, filterStatus]);
+
+  useEffect(() => {
+    setFilteredInDeliveryOrders(filterOrders(inDeliveryOrders, searchQuery, filterStatus));
+  }, [inDeliveryOrders, searchQuery, filterStatus]);
+
+  useEffect(() => {
+    setFilteredCompletedOrders(filterOrders(completedOrders, searchQuery, filterStatus));
+  }, [completedOrders, searchQuery, filterStatus]);
+
+  useEffect(() => {
+    setFilteredCancelledOrders(filterOrders(cancelledOrders, searchQuery, filterStatus));
+  }, [cancelledOrders, searchQuery, filterStatus]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchOrders(false);
@@ -195,8 +264,6 @@ export default function NewOrderScreen() {
       return;
     }
     
-    // ✅ CORRECTION: Le code n'est demandé QUE pour validate_pickup (confirmation finale)
-    // Pour 'accept', on accepte directement SANS code
     if (action === 'validate_pickup') {
       setSelectedOrder(order);
       setSelectedAction(action);
@@ -205,7 +272,6 @@ export default function NewOrderScreen() {
       setValidationSuccess(false);
       setValidationModalVisible(true);
     } else {
-      // Pour les autres actions (accept, assign, cancel)
       setSelectedOrder(order);
       setSelectedAction(action);
       setSelectedDriver(null);
@@ -266,10 +332,6 @@ export default function NewOrderScreen() {
       const orderId = selectedOrder._id;
       const isDeliveryOrder = selectedOrder.isDelivery === true;
 
-      // ✅ CORRECTION: Cette fonction ne valide QUE les commandes confirmées avec le CODE
-      // Les nouvelles commandes sont acceptées via confirmOrderAction() SANS code
-      console.log('🔐 Validation avec le code pour commande confirmée...');
-      
       const endpoint = isDeliveryOrder 
         ? `/orders/${orderId}/validate-delivery`
         : `/orders/${orderId}/complete-pickup`;
@@ -295,22 +357,24 @@ export default function NewOrderScreen() {
         let message = '';
 
         if (isDeliveryOrder) {
-          // Livraison validée
           message = `✅ Livraison validée avec succès!\n\n`;
           setInDeliveryOrders(prev => prev.filter(o => o._id !== orderId));
+          setFilteredInDeliveryOrders(prev => prev.filter(o => o._id !== orderId));
         } else {
-          // Retrait validé
           message = `✅ Retrait validé avec succès!\n\n`;
           setConfirmedOrders(prev => prev.filter(o => o._id !== orderId));
+          setFilteredConfirmedOrders(prev => prev.filter(o => o._id !== orderId));
         }
 
-        setCompletedOrders(prev => [...prev, { 
+        const updatedOrder = { 
           ...selectedOrder, 
           status: 'livre',
           validated: true 
-        }]);
+        };
+        
+        setCompletedOrders(prev => [...prev, updatedOrder]);
+        setFilteredCompletedOrders(prev => [...prev, updatedOrder]);
 
-        // Ajouter le montant reçu si disponible
         let amount = 0;
         if (data.financial?.distributor?.amount) {
           amount = data.financial.distributor.amount;
@@ -319,7 +383,6 @@ export default function NewOrderScreen() {
 
         setValidationMessage(message);
         
-        // Fermer automatiquement après 3 secondes
         setTimeout(() => {
           setValidationModalVisible(false);
           setValidationCode('');
@@ -393,15 +456,15 @@ export default function NewOrderScreen() {
 
       switch (selectedAction) {
         case 'accept':
-          // Accepter la commande SANS code
           newStatus = 'confirme';
           await updateOrderStatus(orderId, newStatus);
           setPendingOrders(prev => prev.filter((o) => o._id !== orderId));
+          setFilteredPendingOrders(prev => prev.filter((o) => o._id !== orderId));
           setConfirmedOrders(prev => [...prev, { ...selectedOrder, status: newStatus }]);
+          setFilteredConfirmedOrders(prev => [...prev, { ...selectedOrder, status: newStatus }]);
           break;
 
         case 'assign':
-          // Assigner un livreur (UNIQUEMENT pour les livraisons)
           if (!isDeliveryOrder) {
             throw new Error("Cette commande ne nécessite pas de livreur (retrait sur place)");
           }
@@ -413,10 +476,8 @@ export default function NewOrderScreen() {
             return;
           }
 
-          // Mettre à jour le statut
           await updateOrderStatus(orderId, newStatus, selectedDriver);
           
-          // Envoyer les données d'assignation
           try {
             await sendDriverAssignmentData(selectedOrder, selectedDriverObj);
           } catch (assignmentError) {
@@ -424,7 +485,13 @@ export default function NewOrderScreen() {
           }
 
           setConfirmedOrders(prev => prev.filter((o) => o._id !== orderId));
+          setFilteredConfirmedOrders(prev => prev.filter((o) => o._id !== orderId));
           setInDeliveryOrders(prev => [...prev, { 
+            ...selectedOrder, 
+            status: newStatus, 
+            driver: selectedDriverObj 
+          }]);
+          setFilteredInDeliveryOrders(prev => [...prev, { 
             ...selectedOrder, 
             status: newStatus, 
             driver: selectedDriverObj 
@@ -441,7 +508,10 @@ export default function NewOrderScreen() {
           newStatus = 'annule';
           await updateOrderStatus(orderId, newStatus);
           setPendingOrders(prev => prev.filter((o) => o._id !== orderId));
-          setOtherOrders(prev => [...prev, { ...selectedOrder, status: newStatus }]);
+          setFilteredPendingOrders(prev => prev.filter((o) => o._id !== orderId));
+          const cancelledOrder = { ...selectedOrder, status: newStatus };
+          setCancelledOrders(prev => [...prev, cancelledOrder]);
+          setFilteredCancelledOrders(prev => [...prev, cancelledOrder]);
           break;
 
         default:
@@ -589,32 +659,44 @@ export default function NewOrderScreen() {
                 <Ionicons name="key-outline" size={16} color="#fff" />
               </TouchableOpacity>
             )}
+            
+            {/* Pas d'actions pour les commandes livrées ou annulées */}
           </View>
         </View>
       </View>
     );
   });
 
-  const OrderSection = React.memo(({ title, orders, onAction }) => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title} ({orders.length})</Text>
+  const OrderSection = React.memo(({ title, orders, onAction }) => {
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>
+            {title} ({orders.length})
+          </Text>
+        </View>
+        
+        {orders.length > 0 ? (
+          <FlatList
+            data={orders}
+            keyExtractor={generateUniqueKey}
+            renderItem={({ item }) => <OrderCard order={item} onAction={onAction} />}
+            scrollEnabled={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+          />
+        ) : (
+          <Text style={styles.emptyText}>
+            {searchQuery.trim() 
+              ? `Aucune commande trouvée pour "${searchQuery}"` 
+              : `Aucune commande ${title.toLowerCase()}.`
+            }
+          </Text>
+        )}
       </View>
-      {orders.length > 0 ? (
-        <FlatList
-          data={orders}
-          keyExtractor={generateUniqueKey}
-          renderItem={({ item }) => <OrderCard order={item} onAction={onAction} />}
-          scrollEnabled={false}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-        />
-      ) : (
-        <Text style={styles.emptyText}>Aucune commande {title.toLowerCase()}.</Text>
-      )}
-    </View>
-  ));
+    );
+  });
 
   const availableDrivers = Array.isArray(drivers)
     ? drivers.filter(driver =>
@@ -657,12 +739,16 @@ export default function NewOrderScreen() {
   const getValidationInstructions = () => {
     if (!selectedOrder) return '';
     
-    // ✅ Cette fonction n'est appelée QUE pour les commandes confirmées
-    // Les nouvelles commandes sont acceptées via le modal d'action SANS code
     if (selectedOrder.isDelivery) {
       return 'Entrez le code de validation fourni par le client pour finaliser la livraison.';
     } else {
       return 'Entrez le code de validation fourni par le client pour valider le retrait sur place.';
+    }
+  };
+
+  const handleGoback = () => {
+    if (navigation && navigation.goBack) {
+      navigation.goBack();
     }
   };
 
@@ -671,8 +757,68 @@ export default function NewOrderScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
       <View style={{ flex: 1 }}>
         <LinearGradient colors={['#2E7D32', '#388E3C']} style={styles.header}>
-          <Text style={styles.headerTitle}>Nouvelles Commandes</Text>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={handleGoback} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Nouvelles Commandes</Text>
+            <View style={{ width: 24 }} />
+          </View>
+          
+          {/* Barre de recherche en haut */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher par ID, nom, téléphone..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#999"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity 
+                onPress={() => setSearchQuery('')}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close-circle" size={20} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Filtres */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterContainer}
+          >
+            {[
+              { key: 'all', label: 'Tout' },
+              { key: 'nouveau', label: 'Nouveau' },
+              { key: 'confirme', label: 'Confirmé' },
+              { key: 'en_livraison', label: 'En Livraison' },
+              { key: 'livre', label: 'Livré' },
+              { key: 'annule', label: 'Annulé' },
+            ].map((filter) => (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterChip,
+                  filterStatus === filter.key && styles.filterChipActive
+                ]}
+                onPress={() => setFilterStatus(filter.key)}
+              >
+                <Text style={[
+                  styles.filterText,
+                  filterStatus === filter.key && styles.filterTextActive
+                ]}>
+                  {filter.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </LinearGradient>
+        
         <ScrollView
           style={styles.content}
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -694,27 +840,27 @@ export default function NewOrderScreen() {
           <>
             <OrderSection
               title="En attente"
-              orders={pendingOrders}
+              orders={filteredPendingOrders}
               onAction={handleOrderAction}
             />
             <OrderSection
               title="Confirmées"
-              orders={confirmedOrders}
+              orders={filteredConfirmedOrders}
               onAction={handleOrderAction}
             />
             <OrderSection
               title="En livraison"
-              orders={inDeliveryOrders}
+              orders={filteredInDeliveryOrders}
               onAction={handleOrderAction}
             />
             <OrderSection
-              title="Terminées"
-              orders={completedOrders}
+              title="Livrées"
+              orders={filteredCompletedOrders}
               onAction={handleOrderAction}
             />
             <OrderSection
               title="Annulées"
-              orders={otherOrders}
+              orders={filteredCancelledOrders}
               onAction={handleOrderAction}
             />
           </>
@@ -970,10 +1116,73 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  backButton: {
+    padding: 5,
+  },
   headerTitle: {
     color: '#fff',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    paddingVertical: 2,
+  },
+  clearButton: {
+    padding: 5,
+    marginLeft: 10,
+  },
+  filterScroll: {
+    marginBottom: 5,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 5,
+  },
+  filterChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  filterChipActive: {
+    backgroundColor: '#fff',
+    borderColor: '#fff',
+  },
+  filterText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#2E7D32',
   },
   content: {
     flex: 1,

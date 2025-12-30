@@ -1,4 +1,3 @@
-// LivreurDashboard.js
 import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
@@ -88,14 +87,14 @@ const LivreurDashboard = () => {
     markAsRead,
   } = useLivreurState();
 
-  // Fonction pour corriger l'ID de commande (enlève le suffixe -0)
+  // ✅ FONCTION POUR CORRIGER L'ID DE COMMANDE
   const getCorrectOrderId = (orderId) => {
     if (!orderId) return null;
     
     // Si l'ID contient un suffixe comme -0, -1, etc., on l'enlève
     if (orderId.includes('-')) {
       const correctedId = orderId.split('-')[0];
-      console.log(' [ID_CORRECTION] ID corrigé:', { original: orderId, corrigé: correctedId });
+      console.log('🔄 [ID_CORRECTION] ID corrigé:', { original: orderId, corrigé: correctedId });
       return correctedId;
     }
     
@@ -143,16 +142,20 @@ const LivreurDashboard = () => {
         throw new Error('Session expirée. Veuillez vous reconnecter.');
       }
 
-      // CORRECTION : Utiliser l'ID corrigé sans le suffixe -0
+      // 🔥 CORRECTION : Utiliser l'ID corrigé sans le suffixe -0
       const correctedOrderId = getCorrectOrderId(selectedLivraisonForValidation.id);
       
       if (!correctedOrderId) {
         throw new Error('ID de commande invalide');
       }
 
+      // Utiliser generateOrderId pour afficher un ID formaté dans les logs
+      const formattedOrderId = generateOrderId(correctedOrderId);
+      
       console.log(' [VALIDATE] Données de validation:', {
         orderIdOriginal: selectedLivraisonForValidation.id,
         orderIdCorrigé: correctedOrderId,
+        formattedOrderId: formattedOrderId,
         validationCode: validationCode,
         livreurId: livreurId
       });
@@ -315,15 +318,31 @@ const LivreurDashboard = () => {
     </View>
   );
 
+  // ✅ Vérifier si on peut marquer comme livré
+  // Peut être en attente (pending) ou en cours (in_progress)
+  const canMarkAsDelivered = (statut) => {
+    return ['en_attente', 'en_cours', 'confirme'].includes(statut);
+  };
+
+  // ✅ Vérifier si on peut annuler
+  // On peut annuler les commandes non-livrées et non-annulées
+  const canCancelOrder = (statut) => {
+    return ['en_attente', 'en_cours', 'confirme'].includes(statut);
+  };
+
   // Composant LivraisonCard
   const LivraisonCard = ({ livraison }) => {
     if (!livraison) return null;
+    
+    const correctedOrderId = getCorrectOrderId(livraison.id);
+    const formattedOrderId = generateOrderId(correctedOrderId || livraison.id);
     
     return (
       <TouchableOpacity style={styles.livraisonCard} activeOpacity={0.8}>
         <View style={styles.livraisonHeader}>
           <View style={styles.livraisonInfo}>
-            <Text style={styles.livraisonId}>{generateOrderId(livraison.id)}</Text>
+            {/* Utiliser l'ID formaté */}
+            <Text style={styles.livraisonId}>{formattedOrderId}</Text>
             <View style={[styles.statutBadge, { backgroundColor: getStatutColor(livraison.statut) + '20' }]}>
               <Ionicons name={getStatutIcon(livraison.statut)} size={16} color={getStatutColor(livraison.statut)} />
               <Text style={[styles.statutText, { color: getStatutColor(livraison.statut) }]}>
@@ -337,6 +356,23 @@ const LivreurDashboard = () => {
         </View>
         
         <Text style={styles.clientName}>{livraison.client || 'Client inconnu'}</Text>
+        
+        {/* Badges d'action */}
+        {/* <View style={styles.actionBadgesContainer}>
+          {canMarkAsDelivered(livraison.statut) && (
+            <View style={styles.actionRequiredBadge}>
+              <Ionicons name="alert-circle" size={12} color="#FF8F00" />
+              <Text style={styles.actionRequiredText}>À livrer</Text>
+            </View>
+          )}
+
+          {canCancelOrder(livraison.statut) && (
+            <View style={styles.cancellableBadge}>
+              <Ionicons name="close-circle" size={12} color="#E53935" />
+              <Text style={styles.cancellableText}>Annulable</Text>
+            </View>
+          )}
+        </View> */}
         
         {(livraison.scheduledAt || livraison.deliveredAt) && (
           <View style={styles.timeContainer}>
@@ -581,12 +617,12 @@ const LivreurDashboard = () => {
     </View>
   );
 
-  const quickActions = [
-    { icon: 'map-outline', label: 'Itinéraire', onPress: () => console.log('Itinéraire') },
-    { icon: 'car-outline', label: 'Ma position', onPress: () => console.log('Ma position') },
-    { icon: 'document-text-outline', label: 'Rapport', onPress: () => console.log('Rapport') },
-    { icon: 'help-circle-outline', label: 'Support', onPress: () => console.log('Support') },
-  ];
+  // const quickActions = [
+  //   { icon: 'map-outline', label: 'Itinéraire', onPress: () => console.log('Itinéraire') },
+  //   { icon: 'car-outline', label: 'Ma position', onPress: () => console.log('Ma position') },
+  //   { icon: 'document-text-outline', label: 'Rapport', onPress: () => console.log('Rapport') },
+  //   { icon: 'help-circle-outline', label: 'Support', onPress: () => console.log('Support') },
+  // ];
 
   return (
     <View style={styles.container}>
@@ -764,7 +800,7 @@ const LivreurDashboard = () => {
             <Text style={codeValidationStyles.instructionText}>Entrez le code à 6 chiffres</Text>
             {selectedLivraisonForValidation && (
               <Text style={codeValidationStyles.livraisonInfo}>
-                Livraison #{selectedLivraisonForValidation.id?.substring(0, 8)}
+                Commande {generateOrderId(getCorrectOrderId(selectedLivraisonForValidation.id) || selectedLivraisonForValidation.id)}
               </Text>
             )}
             <Text style={codeValidationStyles.hintText}>Le code vous a été fourni par le système</Text>
@@ -894,7 +930,7 @@ const LivreurDashboard = () => {
           </View>
           <LivraisonsSection />
         </View>
-        <View style={styles.quickActions}>
+        {/* <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Actions rapides</Text>
           <View style={styles.actionsGrid}>
             {quickActions.map((action, index) => (
@@ -904,7 +940,7 @@ const LivreurDashboard = () => {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </View> */}
       </ScrollView>
       <Footer />
     </View>
@@ -934,6 +970,48 @@ const codeValidationStyles = {
   cancelButtonText: { color: '#666', fontSize: 16 },
   loadingContainer: { alignItems: 'center', padding: 20 },
   loadingText: { marginTop: 10, color: '#666', fontSize: 14 },
+};
+
+// Ajout des styles pour les badges d'action
+const additionalStyles = {
+  actionBadgesContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  actionRequiredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FF8F00',
+  },
+  actionRequiredText: {
+    color: '#FF8F00',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  cancellableBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E53935',
+  },
+  cancellableText: {
+    color: '#E53935',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
 };
 
 export default LivreurDashboard;
