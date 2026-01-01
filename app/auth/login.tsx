@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   View,
   SafeAreaView,
+  Animated,
+  Easing,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import pinLoginStyles from '@/styles/login';
@@ -26,12 +28,20 @@ export default function PinLoginScreen() {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [loginStatus, setLoginStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+
+  // Animations pour les points
+  const dot1Anim = useRef(new Animated.Value(0)).current;
+  const dot2Anim = useRef(new Animated.Value(0)).current;
+  const dot3Anim = useRef(new Animated.Value(0)).current;
 
   const themeColors = {
     primary: '#455A64',
     secondary: '#546E7A',
     accent: '#455A64',
     text: '#2D3748',
+    success: '#4CAF50',
+    error: '#F44336',
   };
 
   // Charger userId depuis params OU AsyncStorage
@@ -57,9 +67,167 @@ export default function PinLoginScreen() {
     setFailedAttempts(0);
   }, [userId]);
 
+  // Démarrer l'animation des points quand on vérifie
+  useEffect(() => {
+    if (loginStatus === 'checking') {
+      startDotsAnimation();
+    }
+  }, [loginStatus]);
+
+  const startDotsAnimation = () => {
+    // Arrêter les animations précédentes
+    dot1Anim.stopAnimation();
+    dot2Anim.stopAnimation();
+    dot3Anim.stopAnimation();
+    
+    // Réinitialiser les valeurs
+    dot1Anim.setValue(0);
+    dot2Anim.setValue(0);
+    dot3Anim.setValue(0);
+
+    // Lancer l'animation des points bleus (vérification en cours)
+    Animated.loop(
+      Animated.parallel([
+        // Point 1
+        Animated.sequence([
+          Animated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: false,
+            easing: Easing.out(Easing.ease),
+          }),
+          Animated.timing(dot1Anim, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: false,
+            easing: Easing.in(Easing.ease),
+          }),
+        ]),
+        // Point 2 avec délai
+        Animated.sequence([
+          Animated.delay(150),
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: false,
+            easing: Easing.out(Easing.ease),
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: false,
+            easing: Easing.in(Easing.ease),
+          }),
+        ]),
+        // Point 3 avec délai plus long
+        Animated.sequence([
+          Animated.delay(300),
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: false,
+            easing: Easing.out(Easing.ease),
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: false,
+            easing: Easing.in(Easing.ease),
+          }),
+        ]),
+      ])
+    ).start();
+  };
+
+  const showSuccessAnimation = () => {
+    // Arrêter l'animation de clignotement
+    dot1Anim.stopAnimation();
+    dot2Anim.stopAnimation();
+    dot3Anim.stopAnimation();
+
+    // Animation de succès : tous les points deviennent verts fixes
+    Animated.parallel([
+      Animated.timing(dot1Anim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(dot2Anim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(dot3Anim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const showErrorAnimation = () => {
+    // Arrêter l'animation de clignotement
+    dot1Anim.stopAnimation();
+    dot2Anim.stopAnimation();
+    dot3Anim.stopAnimation();
+
+    // Animation d'erreur : points rouges clignotants
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+          Animated.timing(dot1Anim, {
+            toValue: 0.3,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(100),
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.3,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(200),
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.3,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+        ]),
+      ]),
+      { iterations: 3 } // Clignoter 3 fois puis s'arrêter
+    ).start(() => {
+      // Après l'animation, réinitialiser à l'état idle
+      setTimeout(() => {
+        dot1Anim.setValue(0);
+        dot2Anim.setValue(0);
+        dot3Anim.setValue(0);
+        setLoginStatus('idle');
+      }, 500);
+    });
+  };
+
   // Ajout d'un chiffre au PIN
   const handlePinPress = (num: string) => {
-    if (pin.length < 4) {
+    if (pin.length < 4 && loginStatus !== 'checking') {
       const newPin = pin + num;
       setPin(newPin);
       if (newPin.length === 4) handleLogin(newPin);
@@ -67,7 +235,11 @@ export default function PinLoginScreen() {
   };
 
   // Suppression dernier chiffre
-  const handleDelete = () => setPin(pin.slice(0, -1));
+  const handleDelete = () => {
+    if (loginStatus !== 'checking') {
+      setPin(pin.slice(0, -1));
+    }
+  };
 
   // Gestion de la réinitialisation du PIN après 3 échecs
   const handleResetPin = () => {
@@ -81,17 +253,16 @@ export default function PinLoginScreen() {
           onPress: () => {
             setPin('');
             setFailedAttempts(0);
-            // Optionnel: retour à l'écran précédent
-            // router.back();
+            setLoginStatus('idle');
           }
         },
         {
           text: 'Réinitialiser',
           onPress: () => {
-            // Redirection vers l'écran de réinitialisation du PIN
             router.push('/auth/reset-pin');
             setPin('');
             setFailedAttempts(0);
+            setLoginStatus('idle');
           }
         }
       ]
@@ -129,14 +300,23 @@ export default function PinLoginScreen() {
             {row.map((button, i) => (
               <TouchableOpacity
                 key={i}
-                style={[pinLoginStyles.keypadButton, button === '' && pinLoginStyles.hiddenButton]}
+                style={[
+                  pinLoginStyles.keypadButton,
+                  button === '' && pinLoginStyles.hiddenButton,
+                  loginStatus === 'checking' && pinLoginStyles.disabledButton
+                ]}
                 onPress={() => {
                   if(button === '⌫') handleDelete();
                   else if(button !== '') handlePinPress(button);
                 }}
-                disabled={button === '' || loading}
+                disabled={button === '' || loginStatus === 'checking'}
               >
-                <Text style={pinLoginStyles.keypadButtonText}>{button}</Text>
+                <Text style={[
+                  pinLoginStyles.keypadButtonText,
+                  loginStatus === 'checking' && { opacity: 0.5 }
+                ]}>
+                  {button}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -150,58 +330,36 @@ export default function PinLoginScreen() {
     try {
       console.log('🔄 [INFO] Demande de permission de localisation...');
 
-      // Demander la permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         console.warn('❌ [WARN] Permission de localisation refusée');
-        Alert.alert(
-          'Permission refusée', 
-          'Autorisez la localisation pour que le livreur vous trouve plus facilement.'
-        );
         return;
       }
 
       console.log('✅ [INFO] Permission accordée, récupération de la position...');
 
-      // Récupérer la position
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Highest,
         timeout: 15000,
         maximumAge: 0,
       });
 
-      const { latitude, longitude, altitude, accuracy, heading, speed } = location.coords;
+      const { latitude, longitude, accuracy } = location.coords;
 
-      console.log('📍 [INFO] Position récupérée:', {
-        latitude: latitude?.toFixed(7),
-        longitude: longitude?.toFixed(7),
-        accuracy: accuracy?.toFixed(2) + 'm',
-        altitude: altitude ? altitude.toFixed(2) + 'm' : 'N/A',
-        heading: heading ?? 'N/A',
-        speed: speed ?? 'N/A',
-        timestamp: new Date().toISOString()
-      });
-
-      // Validation des coordonnées
       if (!latitude || !longitude || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
         throw new Error('Coordonnées GPS invalides');
       }
 
-      // Préparer le payload
       const payload = {
         userId,
         latitude: parseFloat(latitude.toFixed(7)),
         longitude: parseFloat(longitude.toFixed(7)),
         accuracy: accuracy || null,
-        altitude: altitude || null,
-        heading: heading || null,
-        speed: speed || null,
         timestamp: new Date().toISOString(),
       };
 
-      console.log('🔄 [INFO] Payload à envoyer au serveur:', payload);
+      console.log('🔄 [INFO] Envoi de la localisation...');
 
-      // Envoyer au serveur
       const response = await fetch(`${API_BASE_URL}/location/update`, {
         method: 'POST',
         headers: {
@@ -211,40 +369,15 @@ export default function PinLoginScreen() {
         body: JSON.stringify(payload),
       });
 
-      console.log('🔄 [INFO] Requête envoyée au serveur, statut:', response.status);
-
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ [SUCCESS] Localisation envoyée avec succès:', result);
-
-        if (result.neighborhood) {
-          console.log(`📍 [INFO] Quartier détecté: ${result.neighborhood}`);
-        } else {
-          console.warn('⚠️ [WARN] Quartier non identifié par le serveur');
-        }
-
+        console.log('✅ [SUCCESS] Localisation envoyée avec succès');
         return result;
       } else {
-        const error = await response.json();
-        console.error('❌ [ERROR] Erreur serveur:', error);
-        throw new Error(error.message || `Erreur serveur: ${response.status}`);
+        console.warn('⚠️ [WARN] Erreur lors de l\'envoi de la localisation');
       }
-
     } catch (error: any) {
-      console.error('❌ [ERROR] Erreur lors de l\'envoi de localisation:', error);
-
-      // Gestion améliorée des erreurs
-      if (error.code === 'E_LOCATION_TIMEOUT') {
-        Alert.alert('Timeout GPS', 'La récupération de votre position a pris trop de temps.');
-      } else if (error.code === 'E_LOCATION_UNAVAILABLE') {
-        Alert.alert('GPS indisponible', 'Activez le GPS dans les paramètres de votre téléphone.');
-      } else if (error.message.includes('réseau') || error.message.includes('Network')) {
-        Alert.alert('Erreur réseau', 'Vérifiez votre connexion internet.');
-      } else if (!error.message.includes('Permission')) {
-        Alert.alert('Erreur de localisation', 'Impossible d\'envoyer votre position. Réessayez.');
-      }
-
-      throw error;
+      console.warn('⚠️ [WARN] Erreur localisation (non-bloquant):', error.message);
     }
   };
 
@@ -255,11 +388,14 @@ export default function PinLoginScreen() {
       return;
     }
 
+    if (loginStatus === 'checking') return; // Empêcher les doubles clics
+
     try {
       setLoading(true);
+      setLoginStatus('checking');
       const cleanPin = enteredPin.trim();
 
-      console.log('Sending PIN:', cleanPin, 'userId:', userId);
+      console.log('🔍 Vérification du PIN...');
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -268,7 +404,7 @@ export default function PinLoginScreen() {
       });
 
       const data = await response.json();
-      console.log("✅ Réponse complète du serveur :", data);
+      console.log("✅ Réponse du serveur :", data);
 
       if (!response.ok) {
         // Incrémenter le compteur d'échecs
@@ -277,8 +413,14 @@ export default function PinLoginScreen() {
         
         // Vérifier si on a atteint 3 tentatives échouées
         if (newFailedAttempts >= 3) {
-          handleResetPin();
+          setLoginStatus('error');
+          showErrorAnimation();
+          setTimeout(() => {
+            handleResetPin();
+          }, 1000);
         } else {
+          setLoginStatus('error');
+          showErrorAnimation();
           throw new Error(data.message || 'Code PIN incorrect');
         }
         return;
@@ -290,7 +432,7 @@ export default function PinLoginScreen() {
       // ✅ Sauvegarde token
       if (data.token) {
         await AsyncStorage.setItem('userToken', data.token);
-        console.log('Token sauvegardé :', data.token);
+        console.log('Token sauvegardé');
       }
       
       // ✅ Sauvegarde infos utilisateur
@@ -298,62 +440,61 @@ export default function PinLoginScreen() {
         await AsyncStorage.setItem('userData', JSON.stringify(data.user));
         await AsyncStorage.setItem('userId', data.user.id);
         setUserId(data.user.id); 
-        console.log('User data saved:', data.user);
+        console.log('User data saved');
       }
 
       // ✅ Sauvegarde du profil complet
       await AsyncStorage.setItem('userProfile', JSON.stringify(data));
-      console.log('Profil complet sauvegardé dans AsyncStorage');
+      console.log('Profil complet sauvegardé');
 
       // 🔹 Sauvegarde de l'ID client pour les notifications
       if (data.profile?._id) {
         await AsyncStorage.setItem('clientId', data.profile._id);
-        console.log('Client ID sauvegardé :', data.profile._id);
-      } else {
-        console.warn('⚠️ data.profile._id manquant !');
+        console.log('Client ID sauvegardé');
       }
 
-      // 🔹 Log détaillé pour debug
-      const savedProfile = await AsyncStorage.getItem('userProfile');
-      if (savedProfile) {
-        console.log('Contenu exact de userProfile :', JSON.parse(savedProfile));
-      } else {
-        console.warn('userProfile est vide !');
-      }
+      // Animation de succès
+      setLoginStatus('success');
+      showSuccessAnimation();
 
       // 📍 ENVOYER LA LOCALISATION APRÈS CONNEXION RÉUSSIE
       if (data.token && data.user?.id) {
-        console.log('🚀 Envoi de la localisation après connexion...');
-        sendLocationToServer(data.user.id, data.token).catch(error => {
-          console.warn('Erreur localisation (non-bloquant):', error);
-        });
+        console.log('🚀 Envoi de la localisation...');
+        setTimeout(() => {
+          sendLocationToServer(data.user.id, data.token).catch(error => {
+            console.warn('Erreur localisation (non-bloquant):', error);
+          });
+        }, 100);
       }
 
-      // ✅ Redirection selon userType
-      switch (data.user.userType) {
-        case 'distributeur':
-          router.push('/home/distributeurScreen');
-          break;
-        case 'client':
-          router.push('/home/clientScreen');
-          break;
-        case 'livreur':
-          router.push('/home/livreurScreen');
-          break;
-        default:
-          Alert.alert('Erreur', 'Type utilisateur inconnu');
-      }
+      // ✅ Redirection selon userType après un court délai
+      setTimeout(() => {
+        switch (data.user.userType) {
+          case 'distributeur':
+            router.push('/home/distributeurScreen');
+            break;
+          case 'client':
+            router.push('/home/clientScreen');
+            break;
+          case 'livreur':
+            router.push('/home/livreurScreen');
+            break;
+          default:
+            Alert.alert('Erreur', 'Type utilisateur inconnu');
+        }
+      }, 1000);
 
     } catch (error: any) {
       console.error('❌ Erreur lors de la connexion:', error);
       
       // Ne pas afficher l'alerte si c'est parce qu'on a dépassé les tentatives
       if (!error.message.includes('Code PIN incorrect') || failedAttempts < 3) {
-        Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+        setTimeout(() => {
+          Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+        }, 500);
       }
       
       setPin('');
-    } finally {
       setLoading(false);
     }
   };
@@ -388,18 +529,74 @@ export default function PinLoginScreen() {
                 
                 <View style={pinLoginStyles.pinSection}>
                   {renderPinDots()}
+                  
+                  {/* Points de chargement animés */}
+                  <View style={styles.dotsContainer}>
+                    <Animated.View 
+                      style={[
+                        styles.dot,
+                        { 
+                          opacity: dot1Anim,
+                          backgroundColor: loginStatus === 'success' ? themeColors.success : 
+                                        loginStatus === 'error' ? themeColors.error : 
+                                        themeColors.accent
+                        }
+                      ]} 
+                    />
+                    <Animated.View 
+                      style={[
+                        styles.dot,
+                        { 
+                          opacity: dot2Anim,
+                          backgroundColor: loginStatus === 'success' ? themeColors.success : 
+                                        loginStatus === 'error' ? themeColors.error : 
+                                        themeColors.accent
+                        }
+                      ]} 
+                    />
+                    <Animated.View 
+                      style={[
+                        styles.dot,
+                        { 
+                          opacity: dot3Anim,
+                          backgroundColor: loginStatus === 'success' ? themeColors.success : 
+                                        loginStatus === 'error' ? themeColors.error : 
+                                        themeColors.accent
+                        }
+                      ]} 
+                    />
+                  </View>
+
+                  {/* Message d'état */}
+                  {loginStatus === 'checking' && (
+                    <Text style={styles.statusMessage}>
+                      Vérification en cours...
+                    </Text>
+                  )}
+                  {loginStatus === 'success' && (
+                    <Text style={[styles.statusMessage, { color: themeColors.success }]}>
+                      Connexion réussie ✓
+                    </Text>
+                  )}
+                  {loginStatus === 'error' && (
+                    <Text style={[styles.statusMessage, { color: themeColors.error }]}>
+                      Échec de connexion
+                    </Text>
+                  )}
+
                   {renderNumericKeypad()}
-                  {loading && <ActivityIndicator size="small" color="#fff" />}
                   
                   {/* Lien pour réinitialiser le PIN */}
                   <TouchableOpacity
                     style={{ marginTop: 20 }}
                     onPress={() => router.push('/auth/reset-pin')}
+                    disabled={loginStatus === 'checking'}
                   >
                     <Text style={{ 
                       color: themeColors.accent, 
                       textAlign: 'center',
-                      textDecorationLine: 'underline'
+                      textDecorationLine: 'underline',
+                      opacity: loginStatus === 'checking' ? 0.5 : 1
                     }}>
                       Code PIN oublié ?
                     </Text>
@@ -413,3 +610,28 @@ export default function PinLoginScreen() {
     </>
   );
 }
+
+const styles = {
+  dotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 15,
+    height: 30,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 5,
+    backgroundColor: '#455A64',
+  },
+  statusMessage: {
+    color: '#455A64',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginVertical: 5,
+    opacity: 0.9,
+  },
+};

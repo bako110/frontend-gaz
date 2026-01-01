@@ -30,18 +30,22 @@ export default function RootLayout() {
   
   /**
    * Gère la redirection lors de l'initialisation
+   * Logique simple: userId en cache = login PIN, sinon = page d'accueil
    */
   const handleInitialRedirection = useCallback(async () => {
     console.log('🟢 Initialisation - Authentification');
 
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      const userData = await AsyncStorage.getItem('userData');
+      const userId = await AsyncStorage.getItem('userId');
 
       setTimeout(() => {
-        if (token && userData) {
+        if (userId) {
+          // UserId existe dans le cache -> Demander le code PIN
+          console.log('🔑 UserId trouvé dans le cache -> Login avec PIN');
           router.replace('/auth/login');
         } else {
+          // Pas d'userId -> Page d'accueil (qui redirigera vers register)
+          console.log('🆕 Pas d\'userId -> Page d\'accueil');
           router.replace('/');
         }
       }, 0);
@@ -58,7 +62,7 @@ export default function RootLayout() {
   /**
    * Gère le retour de l'app au premier plan
    */
-  const handleAppStateChange = useCallback((nextAppState) => {
+  const handleAppStateChange = useCallback((nextAppState: string) => {
     if (nextAppState === 'active') {
       console.log('📱 App revenue au premier plan');
       

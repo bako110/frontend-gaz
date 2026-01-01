@@ -23,15 +23,51 @@ import { shareAsync } from 'expo-sharing';
 import { API_BASE_URL } from '@/service/config';
 import ClientFooter from './ClientFooter';
 import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
+import RatingModal from '@/components/client/RatingModal';
+import { ratingStyles } from '@/styles/historiqueStyles';
 
 const { width, height } = Dimensions.get('window');
 
+// CORRIGÉ: Mapping complet des statuts du backend
 const ORDER_STATUS = {
-  PENDING: 'en_attente',
-  CONFIRMED: 'confirme',
-  IN_DELIVERY: 'en_livraison',
-  DELIVERED: 'livre',
-  CANCELLED: 'annule',
+  PENDING: 'pending',          // En attente
+  CONFIRMED: 'confirmed',      // Confirmé
+  IN_DELIVERY: 'in_delivery',  // En livraison
+  DELIVERED: 'delivered',      // Livré
+  CANCELLED: 'cancelled',      // Annulé
+};
+
+// Pour la compatibilité avec l'ancien code
+const OLD_TO_NEW_STATUS = {
+  'en_attente': 'pending',
+  'confirme': 'confirmed',
+  'en_livraison': 'in_delivery',
+  'livre': 'delivered',
+  'annule': 'cancelled',
+};
+
+const STATUS_DISPLAY = {
+  'pending': 'EN ATTENTE',
+  'confirmed': 'CONFIRMÉ',
+  'in_delivery': 'EN LIVRAISON',
+  'delivered': 'LIVRÉ',
+  'cancelled': 'ANNULÉ',
+};
+
+const STATUS_COLORS = {
+  'pending': '#757575',
+  'confirmed': '#FF9800',
+  'in_delivery': '#2E7D32',
+  'delivered': '#4CAF50',
+  'cancelled': '#E53935',
+};
+
+const STATUS_ICONS = {
+  'pending': 'time-outline',
+  'confirmed': 'checkmark-circle-outline',
+  'in_delivery': 'car-outline',
+  'delivered': 'checkmark-done-outline',
+  'cancelled': 'close-circle-outline',
 };
 
 export default function HistoriqueScreen() {
@@ -49,6 +85,10 @@ export default function HistoriqueScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // États pour la notation
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedDeliveryForRating, setSelectedDeliveryForRating] = useState(null);
   
   const router = useRouter();
 
@@ -118,30 +158,54 @@ export default function HistoriqueScreen() {
           const sortedOrders = [...data.historique].sort((a, b) =>
             new Date(b.orderTime) - new Date(a.orderTime)
           );
-          const formattedOrders = sortedOrders.map((order) => ({
-            id: order._id,
-            orderId: generateOrderId(order._id),
-            orderNumber: generateOrderNumber(order._id),
-            date: order.orderTime ? new Date(order.orderTime).toLocaleString('fr-FR') : 'Date inconnue',
-            produit: order.products && order.products.length > 0
-              ? `${order.products[0].name} (${order.products[0].fuelType || 'Standard'})`
-              : 'Produit inconnu',
-            quantite: order.products && order.products.length > 0
-              ? order.products[0].quantity
-              : 1,
-            total: order.total || 0,
-            statut: order.status || ORDER_STATUS.PENDING,
-            priority: order.priority,
-            distributorName: order.distributorId?.user?.name || order.distributorName || 'Distributeur inconnu',
-            address: order.address || 'Adresse non définie',
-            type: order.products && order.products.length > 0 ? order.products[0].fuelType : 'Standard',
-            validationCode: order.validationCode || order.orderCode,
-            isDelivery: order.isDelivery || false,
-            distributorId: order.distributorId?._id || order.distributorId,
-            clientPhone: order.clientPhone || '',
-            clientName: order.clientName || '',
-            products: order.products || [],
-          }));
+          
+          // CORRIGÉ: Formater correctement les commandes
+          const formattedOrders = sortedOrders.map((order) => {
+            // Normaliser le statut (gérer à la fois ancien et nouveau format)
+            let normalizedStatus = ORDER_STATUS.PENDING;
+            if (order.status) {
+              normalizedStatus = OLD_TO_NEW_STATUS[order.status] || order.status;
+            }
+            
+            // S'assurer que le statut est valide
+            if (!Object.values(ORDER_STATUS).includes(normalizedStatus)) {
+              console.warn(`Statut inconnu: ${order.status}, normalisé en: pending`);
+              normalizedStatus = ORDER_STATUS.PENDING;
+            }
+
+            const product = order.products && order.products.length > 0 ? order.products[0] : null;
+            
+            return {
+              id: order._id,
+              orderId: generateOrderId(order._id),
+              orderNumber: generateOrderNumber(order._id),
+              date: order.orderTime ? new Date(order.orderTime).toLocaleString('fr-FR') : 'Date inconnue',
+              produit: product 
+                ? `${product.name} (${product.fuelType || 'Standard'})`
+                : 'Produit inconnu',
+              quantite: product ? product.quantity : 1,
+              total: order.total || 0,
+              statut: normalizedStatus, // Utiliser le statut normalisé
+              priority: order.priority,
+              distributorName: order.distributorId?.user?.name || order.distributorName || 'Distributeur inconnu',
+              address: order.address || 'Adresse non définie',
+              type: product ? product.fuelType : 'Standard',
+              validationCode: order.validationCode || order.orderCode,
+              isDelivery: order.isDelivery || false,
+              distributorId: order.distributorId?._id || order.distributorId,
+              clientPhone: order.clientPhone || '',
+              clientName: order.clientName || '',
+              products: order.products || [],
+              originalStatus: order.status, // Garder le statut original pour debug
+            };
+          });
+          
+          console.log('Commandes formatées:', formattedOrders.map(c => ({ 
+            id: c.id, 
+            statut: c.statut,
+            produit: c.produit 
+          })));
+          
           setHistoriqueCommandes(formattedOrders);
           setFilteredCommandes(formattedOrders);
         } else {
@@ -162,27 +226,38 @@ export default function HistoriqueScreen() {
   };
 
   const filterCommandes = () => {
+    console.log('Filtrage - Statut sélectionné:', filterStatus);
+    console.log('Filtrage - Nombre total de commandes:', historiqueCommandes.length);
+    
     let filtered = [...historiqueCommandes];
     
     // Filtrer par recherche
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((commande) => 
-        (commande.orderId && commande.orderId.toLowerCase().includes(query)) ||
-        (commande.orderNumber && commande.orderNumber.toLowerCase().includes(query)) ||
-        (commande.produit && commande.produit.toLowerCase().includes(query)) ||
-        (commande.distributorName && commande.distributorName.toLowerCase().includes(query)) ||
-        (commande.clientName && commande.clientName.toLowerCase().includes(query)) ||
-        (commande.clientPhone && commande.clientPhone.toLowerCase().includes(query)) ||
-        (commande.statut && getStatutText(commande.statut).toLowerCase().includes(query))
-      );
+      filtered = filtered.filter((commande) => {
+        const matches = (
+          (commande.orderId && commande.orderId.toLowerCase().includes(query)) ||
+          (commande.orderNumber && commande.orderNumber.toLowerCase().includes(query)) ||
+          (commande.produit && commande.produit.toLowerCase().includes(query)) ||
+          (commande.distributorName && commande.distributorName.toLowerCase().includes(query)) ||
+          (commande.clientName && commande.clientName.toLowerCase().includes(query)) ||
+          (commande.clientPhone && commande.clientPhone.toLowerCase().includes(query)) ||
+          (commande.statut && getStatutText(commande.statut).toLowerCase().includes(query))
+        );
+        return matches;
+      });
     }
     
-    // Filtrer par statut
+    // CORRIGÉ: Filtrer par statut
     if (filterStatus !== 'all') {
-      filtered = filtered.filter((commande) => commande.statut === filterStatus);
+      console.log('Filtrage par statut:', filterStatus);
+      filtered = filtered.filter((commande) => {
+        console.log(`Commande ${commande.id}: statut=${commande.statut}, matches=${commande.statut === filterStatus}`);
+        return commande.statut === filterStatus;
+      });
     }
     
+    console.log('Filtrage - Résultats:', filtered.length);
     setFilteredCommandes(filtered);
   };
 
@@ -542,37 +617,17 @@ export default function HistoriqueScreen() {
     `;
   };
 
+  // CORRIGÉ: Fonctions de statut utilisant les constantes
   const getStatutColor = (statut) => {
-    switch (statut) {
-      case ORDER_STATUS.IN_DELIVERY: return '#2E7D32';
-      case ORDER_STATUS.DELIVERED: return '#4CAF50';
-      case ORDER_STATUS.CANCELLED: return '#E53935';
-      case ORDER_STATUS.CONFIRMED: return '#FF9800';
-      case ORDER_STATUS.PENDING:
-      default: return '#757575';
-    }
+    return STATUS_COLORS[statut] || '#757575';
   };
 
   const getStatutIcon = (statut) => {
-    switch (statut) {
-      case ORDER_STATUS.IN_DELIVERY: return 'car-outline';
-      case ORDER_STATUS.DELIVERED: return 'checkmark-done-outline';
-      case ORDER_STATUS.CANCELLED: return 'close-circle-outline';
-      case ORDER_STATUS.CONFIRMED: return 'checkmark-circle-outline';
-      case ORDER_STATUS.PENDING:
-      default: return 'time-outline';
-    }
+    return STATUS_ICONS[statut] || 'time-outline';
   };
 
   const getStatutText = (statut) => {
-    switch (statut) {
-      case ORDER_STATUS.IN_DELIVERY: return 'EN LIVRAISON';
-      case ORDER_STATUS.DELIVERED: return 'LIVRÉ';
-      case ORDER_STATUS.CANCELLED: return 'ANNULÉ';
-      case ORDER_STATUS.CONFIRMED: return 'CONFIRMÉ';
-      case ORDER_STATUS.PENDING:
-      default: return 'EN ATTENTE';
-    }
+    return STATUS_DISPLAY[statut] || 'EN ATTENTE';
   };
 
   const getStatusLabel = (status) => {
@@ -799,6 +854,31 @@ export default function HistoriqueScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+              </View>
+            )}
+
+            {/* Bouton de notation pour les commandes livrées */}
+            {selectedCommande && 
+             selectedCommande.statut === ORDER_STATUS.DELIVERED && 
+             selectedCommande.livreurId && (
+              <View style={ratingStyles.ratingSection}>
+                <View style={ratingStyles.ratingSectionHeader}>
+                  <Ionicons name="star" size={24} color="#FFA000" />
+                  <Text style={ratingStyles.ratingSectionTitle}>Évaluer la livraison</Text>
+                </View>
+                <Text style={ratingStyles.ratingSectionDescription}>
+                  Votre avis nous aide à améliorer notre service
+                </Text>
+                <TouchableOpacity
+                  style={ratingStyles.rateButton}
+                  onPress={() => {
+                    setSelectedDeliveryForRating(selectedCommande);
+                    setShowRatingModal(true);
+                  }}
+                >
+                  <Ionicons name="star-outline" size={20} color="#fff" />
+                  <Text style={ratingStyles.rateButtonText}>Noter le livreur</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1059,6 +1139,27 @@ export default function HistoriqueScreen() {
       />
 
       <ValidationCodeModal />
+      
+      {/* Modal de notation */}
+      {selectedDeliveryForRating && (
+        <RatingModal
+          visible={showRatingModal}
+          onClose={() => {
+            setShowRatingModal(false);
+            setSelectedDeliveryForRating(null);
+          }}
+          livreurId={selectedDeliveryForRating.livreurId}
+          deliveryId={selectedDeliveryForRating.id}
+          livreurName={selectedDeliveryForRating.livreurName || 'Livreur'}
+          userId={clientInfo._id}
+          userName={clientInfo.name}
+          userType="client"
+          onRatingSubmitted={() => {
+            onRefresh();
+          }}
+        />
+      )}
+      
       <ClientFooter />
     </View>
   );

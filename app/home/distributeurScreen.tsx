@@ -28,6 +28,7 @@ import DistributorFooter from './distributeur/DistributorFooter';
 import { API_BASE_URL } from '@/service/config';
 import { useExitAlert } from '@/app/hooks/useExitAlert';
 import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
+import RankedLivreurs from '@/components/distributeur/RankedLivreurs';
 
 const { width, height } = Dimensions.get('window');
 
@@ -2024,28 +2025,18 @@ export default function DistributorDashboard() {
                 <Text style={styles.orderSummaryTotal}>{Number(selectedOrder.total).toLocaleString()} FCFA</Text>
               </View>
             )}
-            <Text style={styles.driversTitle}>Livreurs disponibles :</Text>
-            <FlatList
-              data={drivers.filter((driver) => driver.status === 'disponible')}
-              keyExtractor={(item) => item._id}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.driverCard}>
-                  <View style={styles.driverInfo}>
-                    <Text style={styles.driverName}>{item.user?.name || 'Non défini'}</Text>
-                    <Text style={styles.driverPhone}>{item.user?.phone || 'Non défini'}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.assignDriverButton}
-                    onPress={() => handleAssignDriver(item, selectedOrder!)}
-                  >
-                    <Text style={styles.assignDriverText}>Assigner</Text>
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              )}
-              style={styles.driversList}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>Aucun livreur disponible</Text>
-              }
+            <Text style={styles.driversTitle}>Livreurs disponibles (classés par performance) :</Text>
+            <RankedLivreurs 
+              onSelectLivreur={(livreur) => {
+                if (selectedOrder) {
+                  const driverForAssignment = {
+                    _id: livreur._id,
+                    user: livreur.user,
+                    status: 'disponible'
+                  };
+                  handleAssignDriver(driverForAssignment as any, selectedOrder);
+                }
+              }}
             />
           </View>
         </View>
@@ -2258,32 +2249,35 @@ export default function DistributorDashboard() {
 
       <Modal animationType="slide" transparent={true} visible={showDriversModal} onRequestClose={() => setShowDriversModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, styles.largeModalContent]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Livreurs Disponibles</Text>
               <TouchableOpacity onPress={() => setShowDriversModal(false)}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={drivers.filter((driver) => driver.status === 'disponible')}
-              keyExtractor={(item) => item._id}
-              renderItem={({ item }) => (
-                <View style={styles.driverCard}>
-                  <View style={styles.driverInfo}>
-                    <Text style={styles.driverName}>{item.user?.name || 'Non défini'}</Text>
-                    <Text style={styles.driverPhone}>{item.user?.phone || 'Non défini'}</Text>
-                  </View>
-                  <View style={styles.driverStatus}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  </View>
-                </View>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>Aucun livreur disponible</Text>
-              }
-              style={styles.driversList}
-            />
+            <ScrollView 
+              style={styles.headerDriverList}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              <RankedLivreurs 
+                onSelectLivreur={(livreur) => {
+                  setShowDriversModal(false);
+                  Alert.alert(
+                    'Informations du livreur',
+                    `${livreur.user.name}\n\nScore: ${Math.round(livreur.scoring.totalScore)}/100\nDistance: ${livreur.distanceKm} km\nNote: ${livreur.scoring.ratings.overall.toFixed(1)}/5 (${livreur.scoring.ratings.count} avis)\nFiabilité: ${livreur.scoring.reliability.completionRate}%\nLivraisons totales: ${livreur.totalLivraisons}\nEn cours: ${livreur.scoring.currentLoad.activeDeliveries}`,
+                    [
+                      { text: 'Fermer', style: 'cancel' },
+                      { 
+                        text: 'Appeler', 
+                        onPress: () => Linking.openURL(`tel:${livreur.user.phone}`)
+                      }
+                    ]
+                  );
+                }}
+              />
+            </ScrollView>
           </View>
         </View>
       </Modal>

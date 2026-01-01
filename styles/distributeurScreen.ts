@@ -1418,6 +1418,16 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
+  // Styles pour le modal du header des livreurs
+  largeModalContent: {
+    maxHeight: height * 0.85,
+    height: height * 0.85,
+  },
+  headerDriverList: {
+    flex: 1,
+    paddingHorizontal: 5,
+  },
+
 });
 
 export default styles;

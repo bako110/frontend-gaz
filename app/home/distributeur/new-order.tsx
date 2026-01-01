@@ -20,6 +20,7 @@ import { API_BASE_URL } from '@/service/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DistributorFooter from './DistributorFooter';
 import { generateOrderId } from '@/utils/orderUtils';
+import RankedLivreurs from '@/components/distributeur/RankedLivreurs';
 
 const { width } = Dimensions.get('window');
 
@@ -1036,67 +1037,51 @@ export default function NewOrderScreen({ navigation }) {
             {selectedAction === 'assign' && selectedOrder?.isDelivery && (
               <>
                 <Text style={styles.inputLabel}>Sélectionner un livreur:</Text>
-                <TouchableOpacity
-                  style={styles.driverSelector}
-                  onPress={() => setShowDriverList(!showDriverList)}
+                <ScrollView 
+                  style={styles.compactDriverList}
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
                 >
-                  <Text style={styles.driverSelectorText}>
-                    {selectedDriver
-                      ? drivers.find(d => d._id === selectedDriver)?.user?.name || 'Sélectionnez un livreur...'
-                      : 'Sélectionnez un livreur...'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#666" />
-                </TouchableOpacity>
-                {showDriverList && (
-                  <View style={styles.driverList}>
-                    {availableDrivers.length > 0 ? (
-                      availableDrivers.map((driver) => (
-                        <TouchableOpacity
-                          key={driver._id}
-                          style={styles.driverItem}
-                          onPress={() => {
-                            setSelectedDriver(driver._id);
-                            setShowDriverList(false);
-                          }}
-                        >
-                          <Text style={styles.driverName}>{driver.user.name}</Text>
-                          <Text style={styles.driverPhone}>{driver.user.phone || 'N/A'}</Text>
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <Text style={styles.noDriverText}>Aucun livreur disponible</Text>
-                    )}
-                  </View>
-                )}
+                  <RankedLivreurs 
+                    onSelectLivreur={(livreur) => {
+                      setSelectedDriver(livreur._id);
+                      console.log('Livreur sélectionné:', livreur._id, livreur.user.name);
+                    }}
+                  />
+                </ScrollView>
               </>
             )}
             
-            <TouchableOpacity
-              style={[styles.confirmActionButton,
-                (selectedAction === 'assign' && !selectedDriver && selectedOrder?.isDelivery) ? styles.disabledButton : null
-              ]}
-              onPress={confirmOrderAction}
-              disabled={selectedAction === 'assign' && !selectedDriver && selectedOrder?.isDelivery}
-            >
-              <LinearGradient
-                colors={
-                  (selectedAction === 'assign' && !selectedDriver && selectedOrder?.isDelivery)
-                    ? ['#cccccc', '#999999']
-                    : selectedAction === 'cancel'
-                    ? ['#F44336', '#D32F2F']
-                    : ['#2E7D32', '#388E3C']
-                }
-                style={styles.confirmButtonGradient}
+            {selectedAction === 'assign' && selectedOrder?.isDelivery ? (
+              <TouchableOpacity
+                style={[styles.confirmActionButton, !selectedDriver && styles.disabledButton]}
+                onPress={confirmOrderAction}
+                disabled={!selectedDriver}
               >
-                <Text style={styles.confirmButtonText}>
-                  {selectedAction === 'assign'
-                    ? 'Assigner'
-                    : selectedAction === 'cancel'
-                    ? 'Annuler'
-                    : 'Confirmer'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={!selectedDriver ? ['#cccccc', '#999999'] : ['#2E7D32', '#388E3C']}
+                  style={styles.confirmButtonGradient}
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {selectedDriver ? 'Confirmer l\'affectation' : 'Sélectionnez un livreur'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.confirmActionButton}
+                onPress={confirmOrderAction}
+              >
+                <LinearGradient
+                  colors={selectedAction === 'cancel' ? ['#F44336', '#D32F2F'] : ['#2E7D32', '#388E3C']}
+                  style={styles.confirmButtonGradient}
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {selectedAction === 'cancel' ? 'Annuler' : 'Confirmer'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -1593,5 +1578,9 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  compactDriverList: {
+    maxHeight: 300,
+    marginBottom: 15,
   },
 });

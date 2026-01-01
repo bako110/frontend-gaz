@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,39 +91,38 @@ export default function ResetPinScreen() {
 
   // 🔐 Étape 3: Création du nouveau PIN
   const handleNewPinSubmit = async () => {
-  const cleanPhone = phone.replace(/\s+/g, ''); // Supprime tous les espaces
+    const cleanPhone = phone.replace(/\s+/g, ''); // Supprime tous les espaces
 
-  if (newPin.length !== 4 || confirmPin.length !== 4) {
-    Alert.alert('Erreur', 'Les PIN doivent contenir 4 chiffres');
-    return;
-  }
-  if (newPin !== confirmPin) {
-    Alert.alert('Erreur', 'Les PIN ne correspondent pas');
-    return;
-  }
-
-  setIsLoading(true);
-  try {
-    const response = await fetch(`${API_BASE_URL}/pin/reset-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleanPhone, newPin }), // ← utiliser cleanPhone
-    });
-
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Impossible de réinitialiser le PIN');
+    if (newPin.length !== 4 || confirmPin.length !== 4) {
+      Alert.alert('Erreur', 'Les PIN doivent contenir 4 chiffres');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      Alert.alert('Erreur', 'Les PIN ne correspondent pas');
+      return;
     }
 
-    setStep('confirmation');
-    Alert.alert('Succès', 'Votre PIN a été réinitialisé avec succès');
-  } catch (error: any) {
-    Alert.alert('Erreur', error.message || 'Impossible de réinitialiser le PIN');
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/pin/reset-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone, newPin }), // ← utiliser cleanPhone
+      });
 
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Impossible de réinitialiser le PIN');
+      }
+
+      setStep('confirmation');
+      Alert.alert('Succès', 'Votre PIN a été réinitialisé avec succès');
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de réinitialiser le PIN');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // ✅ Étape 4: Confirmation et redirection
   const handleConfirmation = () => {
@@ -375,44 +375,61 @@ export default function ResetPinScreen() {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={themeColors.primary} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <LinearGradient
-          colors={[themeColors.primary, themeColors.secondary]}
-          style={styles.gradient}
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.header}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Réinitialisation PIN</Text>
-            </View>
-            {renderStepIndicator()}
-            <View style={styles.card}>
-              <LinearGradient
-                colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-                style={styles.cardGradient}
-              >
-                {step === 'phone' && renderPhoneStep()}
-                {step === 'verification' && renderVerificationStep()}
-                {step === 'newPin' && renderNewPinStep()}
-                {step === 'confirmation' && renderConfirmationStep()}
-              </LinearGradient>
-            </View>
-          </ScrollView>
-        </LinearGradient>
-      </KeyboardAvoidingView>
+          <LinearGradient
+            colors={[themeColors.primary, themeColors.secondary]}
+            style={styles.gradient}
+          >
+            <ScrollView 
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View style={styles.header}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => router.back()}
+                >
+                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Réinitialisation PIN</Text>
+              </View>
+              
+              {renderStepIndicator()}
+              
+              <View style={styles.card}>
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                  style={styles.cardGradient}
+                >
+                  {step === 'phone' && renderPhoneStep()}
+                  {step === 'verification' && renderVerificationStep()}
+                  {step === 'newPin' && renderNewPinStep()}
+                  {step === 'confirmation' && renderConfirmationStep()}
+                </LinearGradient>
+              </View>
+              
+              {/* Espacement fixe en bas pour éviter le chevauchement */}
+              <View style={styles.bottomSpacing} />
+            </ScrollView>
+          </LinearGradient>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#1a1a2e',
+  },
   container: {
     flex: 1,
   },
@@ -422,11 +439,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 30, // Espacement ajusté selon la plateforme
+  },
+  bottomSpacing: {
+    height: Platform.OS === 'ios' ? 40 : 30, // Espace fixe en bas
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 30,
+    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   backButton: {
     padding: 8,
@@ -500,6 +522,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
+    marginBottom: 20,
   },
   cardGradient: {
     padding: 25,

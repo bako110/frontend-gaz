@@ -19,12 +19,14 @@ import * as ImagePicker from 'expo-image-picker';
 import styles from '@/styles/clientsetting';
 import { API_BASE_URL } from '@/service/config';
 import ClientFooter from './ClientFooter';
+import HelpSupportModal from '@/components/HelpSupportModal';
 
 export default function SettingsScreen() {
   const [clientInfo, setClientInfo] = useState({
     name: '',
     phone: '',
     address: '',
+    email: '',
     balance: 0,
     photo: null,
   });
@@ -51,6 +53,15 @@ export default function SettingsScreen() {
   const [kycStatus, setKycStatus] = useState('non_verifie');
   const [isSubmittingKYC, setIsSubmittingKYC] = useState(false);
 
+  // États pour l'édition du profil
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editNeighborhood, setEditNeighborhood] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -65,11 +76,16 @@ export default function SettingsScreen() {
       const userProfileStr = await AsyncStorage.getItem('userProfile');
       const parsedData = userProfileStr ? JSON.parse(userProfileStr) : JSON.parse(userDataStr || '{}');
       const user = userProfileStr ? parsedData.user : parsedData;
+      const profile = parsedData?.profile || {};
+      
+      console.log('Données chargées:', { user, profile });
+      
       setClientInfo({
-        name: user?.name || parsedData?.profile?.name || 'Utilisateur',
-        phone: user?.phone || parsedData?.profile?.phone || 'Non défini',
-        address: user?.address || parsedData?.profile?.address || 'Non définie',
-        photo: user?.photo || parsedData?.profile?.photo || null,
+        name: user?.name || profile?.name || 'Utilisateur',
+        phone: user?.phone || profile?.phone || 'Non défini',
+        address: profile?.address || user?.address || 'Non définie',
+        email: profile?.email || user?.email || '',
+        photo: user?.photo || profile?.photo || null,
       });
     } catch (error) {
       console.error("Erreur chargement données:", error);
@@ -177,7 +193,11 @@ export default function SettingsScreen() {
 
   const handleChangePin = () => setIsPinModalVisible(true);
 
-  const handlePinChangeSubmit = () => {
+  const handlePinChangeSubmit = async () => {
+    if (!currentPin || currentPin.length !== 4) {
+      Alert.alert('Erreur', 'Veuillez entrer votre ancien PIN (4 chiffres).');
+      return;
+    }
     if (newPin !== confirmPin) {
       Alert.alert('Erreur', 'Les nouveaux codes PIN ne correspondent pas.');
       return;
@@ -186,11 +206,39 @@ export default function SettingsScreen() {
       Alert.alert('Erreur', 'Le code PIN doit comporter 4 chiffres.');
       return;
     }
-    Alert.alert('Succès', 'Votre code PIN a été changé avec succès.');
-    setIsPinModalVisible(false);
-    setCurrentPin('');
-    setNewPin('');
-    setConfirmPin('');
+
+    try {
+      setIsLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/pin/change-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: clientInfo.phone,
+          currentPin: currentPin,
+          newPin: newPin,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert('Succès', 'Votre code PIN a été changé avec succès.');
+        setIsPinModalVisible(false);
+        setCurrentPin('');
+        setNewPin('');
+        setConfirmPin('');
+      } else {
+        Alert.alert('Erreur', data.error || 'Erreur lors du changement de PIN.');
+      }
+    } catch (error) {
+      console.error('Erreur changement PIN:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors du changement de PIN.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const pickDocument = async () => {
@@ -252,12 +300,121 @@ export default function SettingsScreen() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets.length > 0) {
+        setSelectedPhoto(result.assets[0]);
         setClientInfo(prev => ({ ...prev, photo: result.assets[0].uri }));
-        Alert.alert('Succès', 'Photo de profil changée avec succès');
       }
     } catch (error) {
       console.error('Erreur changement photo:', error);
       Alert.alert('Erreur', 'Erreur lors du changement de photo');
+    }
+  };
+
+  const startEditingProfile = () => {
+    console.log('🔧 Début édition profil');
+    console.log('📋 Données actuelles:', clientInfo);
+    setEditName(clientInfo.name);
+    setEditAddress(clientInfo.address);
+    setEditEmail(clientInfo.email);
+    setEditNeighborhood('');
+    setSelectedPhoto(null);
+    setIsEditingProfile(true);
+    console.log('✅ Mode édition activé');
+  };
+
+  const saveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+      
+      const clientsData = await AsyncStorage.getItem('userProfile');
+      if (!clientsData) {
+        Alert.alert('Erreur', 'Données utilisateur non trouvées');
+        return;
+      }
+
+      const parsedData = JSON.parse(clientsData);
+      const userId = parsedData.user?.id || parsedData.id;
+      
+      if (!userId) {
+        Alert.alert('Erreur', 'ID utilisateur non trouvé');
+        return;
+      }
+
+      console.log('📤 Envoi des données au backend:', {
+        userId,
+        name: editName,
+        address: editAddress,
+        email: editEmail,
+        hasPhoto: !!selectedPhoto
+      });
+
+      const formData = new FormData();
+      formData.append('name', editName);
+      formData.append('address', editAddress);
+      if (editEmail) {
+        formData.append('email', editEmail);
+      }
+      if (editNeighborhood) {
+        formData.append('neighborhood', editNeighborhood);
+      }
+
+      if (selectedPhoto) {
+        formData.append('photo', {
+          uri: selectedPhoto.uri,
+          type: 'image/jpeg',
+          name: 'profile_photo.jpg'
+        } as any);
+      }
+
+      console.log('🌐 URL:', `${API_BASE_URL}/auth/${userId}/profile`);
+
+      const response = await fetch(`${API_BASE_URL}/auth/${userId}/profile`, {
+        method: 'PUT',
+        body: formData,
+      });
+
+      console.log('📥 Statut réponse:', response.status);
+      const data = await response.json();
+      console.log('📦 Données reçues:', data);
+
+      if (response.ok && data.success) {
+        // Mettre à jour clientInfo avec toutes les données
+        setClientInfo(prev => ({
+          ...prev,
+          name: data.user.name,
+          address: data.profile?.address || editAddress,
+          email: data.profile?.email || editEmail,
+          photo: data.user.photo || prev.photo,
+        }));
+
+        // Mettre à jour AsyncStorage
+        const updatedProfile = {
+          ...parsedData,
+          user: {
+            ...parsedData.user,
+            name: data.user.name,
+            photo: data.user.photo,
+          },
+          profile: {
+            ...parsedData.profile,
+            address: data.profile?.address || editAddress,
+            email: data.profile?.email || editEmail,
+          }
+        };
+        await AsyncStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+
+        console.log('✅ Profil mis à jour avec succès');
+        Alert.alert('Succès', 'Profil mis à jour avec succès');
+        setIsEditingProfile(false);
+        setSelectedPhoto(null);
+      } else {
+        console.error('❌ Erreur backend:', data);
+        Alert.alert('Erreur', data.message || 'Erreur lors de la mise à jour du profil');
+      }
+    } catch (error: any) {
+      console.error('❌ Erreur sauvegarde profil:', error);
+      Alert.alert('Erreur', `Une erreur est survenue: ${error.message}`);
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -288,28 +445,22 @@ export default function SettingsScreen() {
         return;
       }
 
-      // Création du FormData pour l'envoi des fichiers
       const formData = new FormData();
       
-      // Ajout du document d'identité
       formData.append('idDocument', {
         uri: idDocument.uri,
         type: 'image/jpeg',
         name: 'id_document.jpg'
-      });
+      } as any);
 
-      // Ajout de la photo en direct
       formData.append('livePhoto', {
         uri: livePhoto.uri,
         type: 'image/jpeg',
         name: 'live_photo.jpg'
-      });
+      } as any);
 
-      // Ajout des métadonnées
       formData.append('clientId', clientId);
       formData.append('submissionDate', new Date().toISOString());
-
-      console.log('Envoi KYS pour client:', clientId);
 
       const response = await fetch(`${API_BASE_URL}/auth/${clientId}/kyc`, {
         method: 'POST',
@@ -324,31 +475,27 @@ export default function SettingsScreen() {
         throw new Error(errorData.message || 'Erreur lors de la soumission KYS');
       }
 
-      const result = await response.json();
-      console.log('Réponse KYS:', result);
+      const resultData = await response.json();
+      console.log('Réponse KYS:', resultData);
 
       setKycStatus('en_cours');
       
       Alert.alert(
         'Demande soumise',
-        'Votre demande de vérification KYS a été soumise avec succès. Vous serez notifié une fois la vérification terminée.',
+        'Votre demande de vérification KYS a été soumise avec succès.',
         [{ 
           text: 'OK', 
           onPress: () => {
             setIsKYSModalVisible(false);
-            // Réinitialiser les documents après soumission
             setIdDocument(null);
             setLivePhoto(null);
           }
         }]
       );
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur soumission KYS:', error);
-      Alert.alert(
-        'Erreur',
-        error.message || 'Une erreur est survenue lors de la soumission de votre demande KYS. Veuillez réessayer.'
-      );
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue.');
     } finally {
       setIsSubmittingKYC(false);
     }
@@ -406,10 +553,10 @@ export default function SettingsScreen() {
       onPress: () => setIsLanguageModalVisible(true),
     },
     {
-      id: 'help',
-      label: 'Aide & Support',
-      icon: <Ionicons name="help-circle-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
-      onPress: () => router.push('/home/client/support'),
+      id: 'messaging',
+      label: 'Messagerie',
+      icon: <Ionicons name="chatbubbles-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
+      onPress: () => setIsHelpModalVisible(true),
     },
     {
       id: 'about',
@@ -451,6 +598,7 @@ export default function SettingsScreen() {
               </Text>
               <Text style={styles.profilePhone}>{clientInfo.phone}</Text>
               <Text style={styles.profileAddress}>{clientInfo.address}</Text>
+              <Text style={styles.profileEmail}>{clientInfo.email || 'Non défini'}</Text>
             </View>
           </View>
 
@@ -584,9 +732,12 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, isDarkMode ? styles.darkModal : styles.lightModal]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-                Mon Profil
+                {isEditingProfile ? 'Modifier le Profil' : 'Mon Profil'}
               </Text>
-              <TouchableOpacity onPress={() => setIsProfileModalVisible(false)}>
+              <TouchableOpacity onPress={() => {
+                setIsProfileModalVisible(false);
+                setIsEditingProfile(false);
+              }}>
                 <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
               </TouchableOpacity>
             </View>
@@ -597,185 +748,255 @@ export default function SettingsScreen() {
                 ) : (
                   <Ionicons name="person-circle" size={80} color={isDarkMode ? '#fff' : '#2E7D32'} />
                 )}
-                <TouchableOpacity style={styles.editPhotoButton} onPress={changeProfilePhoto}>
-                  <Text style={styles.editPhotoText}>Changer la photo</Text>
+                {isEditingProfile && (
+                  <TouchableOpacity style={styles.editPhotoButton} onPress={changeProfilePhoto}>
+                    <Text style={styles.editPhotoText}>Changer la photo</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {isEditingProfile ? (
+                <View style={styles.profileInfoModal}>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Nom complet</Text>
+                    <TextInput
+                      style={[styles.input, isDarkMode ? styles.darkInput : styles.lightInput]}
+                      value={editName}
+                      onChangeText={setEditName}
+                      placeholder="Votre nom"
+                      placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                    />
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Téléphone</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.phone}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Adresse</Text>
+                    <TextInput
+                      style={[styles.input, isDarkMode ? styles.darkInput : styles.lightInput]}
+                      value={editAddress}
+                      onChangeText={setEditAddress}
+                      placeholder="Votre adresse"
+                      placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                    />
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Email</Text>
+                    <TextInput
+                      style={[styles.input, isDarkMode ? styles.darkInput : styles.lightInput]}
+                      value={editEmail}
+                      onChangeText={setEditEmail}
+                      placeholder="Votre email"
+                      placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.profileInfoModal}>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Nom complet</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.name}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Téléphone</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.phone}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Adresse</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.address}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Email</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.email || 'Non défini'}</Text>
+                  </View>
+                </View>
+              )}
+              
+              {isEditingProfile ? (
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.cancelButton, isDarkMode ? styles.darkCancelButton : styles.lightCancelButton]}
+                    onPress={() => setIsEditingProfile(false)}
+                  >
+                    <Text style={[styles.buttonText, isDarkMode ? styles.darkButtonText : styles.lightButtonText]}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.submitButton} 
+                    onPress={saveProfile}
+                    disabled={isSavingProfile}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isSavingProfile ? 'Enregistrement...' : 'Enregistrer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  style={[styles.editProfileButton, { backgroundColor: '#2E7D32', padding: 15, borderRadius: 8, marginTop: 20 }]} 
+                  onPress={() => {
+                    console.log(' BOUTON CLIQUÉ!');
+                    startEditingProfile();
+                  }}
+                >
+                  <Text style={[styles.editProfileText, { color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: 'bold' }]}>
+                    Modifier le profil
+                  </Text>
                 </TouchableOpacity>
-              </View>
-              <View style={styles.profileInfoModal}>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Nom complet</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.name}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Téléphone</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.phone}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Adresse</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.address}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Email</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>utilisateur@example.com</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.editProfileButton}>
-                <Text style={styles.editProfileText}>Modifier le profil</Text>
-              </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
       </Modal>
 
       <Modal visible={isKYSModalVisible} animationType="slide" transparent>
-  <View style={styles.modalContainer}>
-    <View style={[styles.modalContent, isDarkMode ? styles.darkModal : styles.lightModal, styles.kycModal]}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-          Vérification KYS
-        </Text>
-        <TouchableOpacity onPress={() => setIsKYSModalVisible(false)}>
-          <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.kycContent}>
-        <View style={styles.kycStatus}>
-          <Text style={[styles.kycStatusText, isDarkMode ? styles.darkText : styles.lightText]}>
-            Statut:
-          </Text>
-          <Text style={[styles.kycStatusValue, { color: getKYCStatusColor() }]}>
-            {getKYCStatusText()}
-          </Text>
-        </View>
-        
-        {/* Afficher le message si le statut est "en_cours" */}
-        {(kycStatus === 'en_cours' || kycStatus === 'verifie') && (
-          <View style={styles.kycMessage}>
-            <Ionicons 
-              name={kycStatus === 'verifie' ? "checkmark-circle" : "time"} 
-              size={32} 
-              color={getKYCStatusColor()} 
-            />
-            <Text style={[
-              styles.kycMessageText,
-              isDarkMode ? styles.darkText : styles.lightText
-            ]}>
-              {kycStatus === 'verifie' 
-                ? 'Votre identité a été vérifiée avec succès.' 
-                : 'Votre demande de vérification est en cours de traitement.'}
-            </Text>
-            {kycStatus === 'en_cours' && (
-              <Text style={[
-                styles.kycMessageSubText,
-                isDarkMode ? styles.darkText : styles.lightText
-              ]}>
-                Vous ne pouvez pas soumettre de nouveaux documents pendant la vérification.
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, isDarkMode ? styles.darkModal : styles.lightModal, styles.kycModal]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                Vérification KYS
               </Text>
-            )}
-          </View>
-        )}
-
-        {/* Afficher les étapes d'upload seulement si le statut est "non_verifie" ou "rejete" */}
-        {(kycStatus === 'non_verifie' || kycStatus === 'rejete') && (
-          <>
-            <Text style={[styles.kycDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-              {kycStatus === 'rejete' 
-                ? 'Votre précédente vérification a été rejetée. Veuillez soumettre à nouveau vos documents :'
-                : 'Pour compléter votre vérification KYS, veuillez fournir les documents suivants :'}
-            </Text>
-            
-            <View style={styles.kycSteps}>
-              <View style={styles.kycStep}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>1</Text>
-                  <Text style={[styles.stepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-                    Pièce d'identité
-                  </Text>
-                </View>
-                <Text style={[styles.stepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-                  Carte nationale d'identité, passeport ou permis de conduire
-                </Text>
-                <TouchableOpacity
-                  style={[styles.uploadButton, idDocument && styles.uploadButtonSuccess]}
-                  onPress={pickDocument}
-                >
-                  <Ionicons
-                    name={idDocument ? "checkmark-circle" : "document-attach"}
-                    size={24}
-                    color={idDocument ? "#4caf50" : (isDarkMode ? "#fff" : "#000")}
-                  />
-                  <Text style={[
-                    styles.uploadButtonText,
-                    isDarkMode ? styles.darkText : styles.lightText,
-                    idDocument && styles.uploadButtonTextSuccess
-                  ]}>
-                    {idDocument ? 'Document sélectionné' : 'Sélectionner le document'}
-                  </Text>
-                </TouchableOpacity>
-                {idDocument && (
-                  <Text style={styles.selectedFileText}>
-                    Fichier: {idDocument.fileName || 'Image sélectionnée'}
-                  </Text>
-                )}
-              </View>
-              
-              <View style={styles.kycStep}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>2</Text>
-                  <Text style={[styles.stepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-                    Photo en direct
-                  </Text>
-                </View>
-                <Text style={[styles.stepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-                  Prenez une photo de vous en temps réel pour vérification
-                </Text>
-                <TouchableOpacity
-                  style={[styles.uploadButton, livePhoto && styles.uploadButtonSuccess]}
-                  onPress={takeLivePhoto}
-                >
-                  <Ionicons
-                    name={livePhoto ? "checkmark-circle" : "camera"}
-                    size={24}
-                    color={livePhoto ? "#4caf50" : (isDarkMode ? "#fff" : "#000")}
-                  />
-                  <Text style={[
-                    styles.uploadButtonText,
-                    isDarkMode ? styles.darkText : styles.lightText,
-                    livePhoto && styles.uploadButtonTextSuccess
-                  ]}>
-                    {livePhoto ? 'Photo prise' : 'Prendre une photo'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            {/* Bouton de soumission seulement si les documents sont prêts */}
-            {idDocument && livePhoto && (
-              <TouchableOpacity 
-                style={[
-                  styles.submitKYCButton, 
-                  isSubmittingKYC && styles.submitKYCButtonDisabled
-                ]} 
-                onPress={submitKYC}
-                disabled={isSubmittingKYC}
-              >
-                {isSubmittingKYC ? (
-                  <Text style={styles.submitKYCButtonText}>
-                    Soumission en cours...
-                  </Text>
-                ) : (
-                  <Text style={styles.submitKYCButtonText}>
-                    {kycStatus === 'rejete' ? 'Soumettre à nouveau' : 'Soumettre la vérification'}
-                  </Text>
-                )}
+              <TouchableOpacity onPress={() => setIsKYSModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
               </TouchableOpacity>
-            )}
-          </>
-        )}
-      </View>
-    </View>
-  </View>
-</Modal>
+            </View>
+            <View style={styles.kycContent}>
+              <View style={styles.kycStatus}>
+                <Text style={[styles.kycStatusText, isDarkMode ? styles.darkText : styles.lightText]}>
+                  Statut:
+                </Text>
+                <Text style={[styles.kycStatusValue, { color: getKYCStatusColor() }]}>
+                  {getKYCStatusText()}
+                </Text>
+              </View>
+        
+              {(kycStatus === 'en_cours' || kycStatus === 'verifie') && (
+                <View style={styles.kycMessage}>
+                  <Ionicons 
+                    name={kycStatus === 'verifie' ? "checkmark-circle" : "time"} 
+                    size={32} 
+                    color={getKYCStatusColor()} 
+                  />
+                  <Text style={[
+                    styles.kycMessageText,
+                    isDarkMode ? styles.darkText : styles.lightText
+                  ]}>
+                    {kycStatus === 'verifie' 
+                      ? 'Votre identité a été vérifiée avec succès.' 
+                      : 'Votre demande de vérification est en cours de traitement.'}
+                  </Text>
+                  {kycStatus === 'en_cours' && (
+                    <Text style={[
+                      styles.kycMessageSubText,
+                      isDarkMode ? styles.darkText : styles.lightText
+                    ]}>
+                      Vous ne pouvez pas soumettre de nouveaux documents pendant la vérification.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {(kycStatus === 'non_verifie' || kycStatus === 'rejete') && (
+                <>
+                  <Text style={[styles.kycDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                    {kycStatus === 'rejete' 
+                      ? 'Votre précédente vérification a été rejetée. Veuillez soumettre à nouveau vos documents :'
+                      : 'Pour compléter votre vérification KYS, veuillez fournir les documents suivants :'}
+                  </Text>
+                  
+                  <View style={styles.kycSteps}>
+                    <View style={styles.kycStep}>
+                      <View style={styles.stepHeader}>
+                        <Text style={styles.stepNumber}>1</Text>
+                        <Text style={[styles.stepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                          Pièce d'identité
+                        </Text>
+                      </View>
+                      <Text style={[styles.stepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Carte nationale d'identité, passeport ou permis de conduire
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.uploadButton, idDocument && styles.uploadButtonSuccess]}
+                        onPress={pickDocument}
+                      >
+                        <Ionicons
+                          name={idDocument ? "checkmark-circle" : "document-attach"}
+                          size={24}
+                          color={idDocument ? "#4caf50" : (isDarkMode ? "#fff" : "#000")}
+                        />
+                        <Text style={[
+                          styles.uploadButtonText,
+                          isDarkMode ? styles.darkText : styles.lightText,
+                          idDocument && styles.uploadButtonTextSuccess
+                        ]}>
+                          {idDocument ? 'Document sélectionné' : 'Sélectionner le document'}
+                        </Text>
+                      </TouchableOpacity>
+                      {idDocument && (
+                        <Text style={styles.selectedFileText}>
+                          Fichier: {idDocument.fileName || 'Image sélectionnée'}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <View style={styles.kycStep}>
+                      <View style={styles.stepHeader}>
+                        <Text style={styles.stepNumber}>2</Text>
+                        <Text style={[styles.stepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                          Photo en direct
+                        </Text>
+                      </View>
+                      <Text style={[styles.stepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Prenez une photo de vous en temps réel pour vérification
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.uploadButton, livePhoto && styles.uploadButtonSuccess]}
+                        onPress={takeLivePhoto}
+                      >
+                        <Ionicons
+                          name={livePhoto ? "checkmark-circle" : "camera"}
+                          size={24}
+                          color={livePhoto ? "#4caf50" : (isDarkMode ? "#fff" : "#000")}
+                        />
+                        <Text style={[
+                          styles.uploadButtonText,
+                          isDarkMode ? styles.darkText : styles.lightText,
+                          livePhoto && styles.uploadButtonTextSuccess
+                        ]}>
+                          {livePhoto ? 'Photo prise' : 'Prendre une photo'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  {idDocument && livePhoto && (
+                    <TouchableOpacity 
+                      style={[
+                        styles.submitKYCButton, 
+                        isSubmittingKYC && styles.submitKYCButtonDisabled
+                      ]} 
+                      onPress={submitKYC}
+                      disabled={isSubmittingKYC}
+                    >
+                      {isSubmittingKYC ? (
+                        <Text style={styles.submitKYCButtonText}>
+                          Soumission en cours...
+                        </Text>
+                      ) : (
+                        <Text style={styles.submitKYCButtonText}>
+                          {kycStatus === 'rejete' ? 'Soumettre à nouveau' : 'Soumettre la vérification'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={isWalletModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
@@ -852,6 +1073,15 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      <HelpSupportModal
+        visible={isHelpModalVisible}
+        onClose={() => setIsHelpModalVisible(false)}
+        isDarkMode={isDarkMode}
+        userRole="client"
+        userModel="Client"
+      />
+
       <ClientFooter />
     </View>
   );

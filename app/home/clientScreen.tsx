@@ -1090,10 +1090,10 @@ const fetchOrders = useCallback(async () => {
           )}
         </View>
 
-        <View style={styles.quickActions}>
+        {/* <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Actions rapides</Text>
         <View style={styles.quickActionsContainer}>
-          {/* <Text style={styles.quickActionsTitle}>Actions rapides</Text> */}
+          <Text style={styles.quickActionsTitle}>Actions rapides</Text>
           <View style={styles.quickActionsGrid}>
             <TouchableOpacity 
               style={styles.quickActionButton}
@@ -1134,7 +1134,7 @@ const fetchOrders = useCallback(async () => {
             </Link>
           </View>
         </View>
-        </View>
+        </View> */}
       </>
     );
   };

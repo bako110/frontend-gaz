@@ -1,4 +1,3 @@
-// styles/pinLoginStyles.js
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -6,7 +5,6 @@ const { width } = Dimensions.get('window');
 export default StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   scrollContent: {
     flexGrow: 1,
@@ -19,27 +17,29 @@ export default StyleSheet.create({
     width: '90%',
     backgroundColor: '#fff',
     borderRadius: 20,
-    padding: 20,
+    padding: 25,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
   cardHeader: {
     alignItems: 'center',
     marginBottom: 30,
   },
   cardTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
     color: '#2D3748',
-    marginBottom: 5,
+    marginBottom: 8,
   },
   cardSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#718096',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   pinSection: {
     alignItems: 'center',
@@ -49,21 +49,22 @@ export default StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '60%',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   pinDot: {
-    width: 15,
-    height: 15,
+    width: 16,
+    height: 16,
     borderRadius: 8,
     backgroundColor: '#E2E8F0',
   },
   keypadContainer: {
     width: '100%',
+    marginTop: 10,
   },
   keypadRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginVertical: 10,
+    marginVertical: 8,
   },
   keypadButton: {
     width: width * 0.18,
@@ -73,13 +74,13 @@ export default StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   keypadButtonText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '600',
     color: '#2D3748',
   },
@@ -87,5 +88,8 @@ export default StyleSheet.create({
     backgroundColor: 'transparent',
     elevation: 0,
     shadowOpacity: 0,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });

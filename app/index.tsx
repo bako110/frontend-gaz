@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,10 +7,13 @@ import {
   Dimensions,
   ScrollView,
   StatusBar,
-  Alert, // ⬅️ pour afficher une erreur
+  Alert,
+  Text,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native'; 
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/service/config';
 
 const { width, height } = Dimensions.get('window');
@@ -21,20 +24,28 @@ const glowRingSize = width * 0.8;
 const outerRingSize = width * 0.85;   
 
 export default function HomeScreen() {
-  const navigation = useNavigation(); // <-- hook navigation
+  const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
+  const [backendStatus, setBackendStatus] = useState<'pending' | 'success' | 'error'>('pending');
 
-  // Animations
+  // Animations principales
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animations pour les points
+  const dot1Anim = useRef(new Animated.Value(0)).current;
+  const dot2Anim = useRef(new Animated.Value(0)).current;
+  const dot3Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Animations d'entrée
+    // Animations d'entrée pour l'icône et les points
     Animated.parallel([
+      // Animation de l'icône
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
+        duration: 800,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -43,13 +54,75 @@ export default function HomeScreen() {
         friction: 8,
         useNativeDriver: true,
       }),
+      
+      // Animation des points (démarrent en même temps)
+      Animated.sequence([
+        Animated.delay(500), // Petit délai après l'apparition de l'icône
+        Animated.parallel([
+          // Point 1: clignote toujours
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(dot1Anim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.ease),
+              }),
+              Animated.timing(dot1Anim, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+                easing: Easing.in(Easing.ease),
+              }),
+            ])
+          ),
+          // Point 2: clignote avec un léger délai
+          Animated.loop(
+            Animated.sequence([
+              Animated.delay(150),
+              Animated.timing(dot2Anim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.ease),
+              }),
+              Animated.timing(dot2Anim, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+                easing: Easing.in(Easing.ease),
+              }),
+              Animated.delay(150),
+            ])
+          ),
+          // Point 3: clignote avec un délai plus long
+          Animated.loop(
+            Animated.sequence([
+              Animated.delay(300),
+              Animated.timing(dot3Anim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.ease),
+              }),
+              Animated.timing(dot3Anim, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+                easing: Easing.in(Easing.ease),
+              }),
+              Animated.delay(300),
+            ])
+          ),
+        ])
+      ])
     ]).start();
 
-    // Animation de pulsation continue
+    // Animation de pulsation continue pour l'icône
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.1,
+          toValue: 1.05,
           duration: 2000,
           useNativeDriver: true,
         }),
@@ -61,38 +134,153 @@ export default function HomeScreen() {
       ])
     ).start();
 
-    // Animation de rotation continue
+    // Animation de rotation continue pour les anneaux
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 20000,
+        duration: 25000,
         useNativeDriver: true,
       })
     ).start();
 
-    // ⬇️ Appel au backend après 6 secondes
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/ok`);
-        if (response.ok) {
-          // si l’API répond OK → on redirige
-          navigation.navigate('auth/register'); // <-- utilisation de la navigation
-        } else {
-          Alert.alert(
-            'Erreur de connexion',
-            'Le serveur a répondu avec une erreur. Veuillez vérifier votre connexion ou réessayer.'
-          );
-        }
-      } catch (error) {
-        Alert.alert(
-          'Erreur de connexion',
-          'Impossible de se connecter au serveur. Vérifiez votre connexion Internet.'
-        );
-      }
-    }, 6000);
-
-    return () => clearTimeout(timer);
+    // Vérification immédiate du backend
+    checkBackendConnection();
   }, []);
+
+  const checkBackendConnection = async () => {
+    setIsChecking(true);
+    
+    try {
+      console.log('🔍 Vérification du backend...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const response = await fetch(`${API_BASE_URL}/ok`, {
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        console.log('✅ Backend OK');
+        setBackendStatus('success');
+        
+        // Animation de succès : les 3 points deviennent verts et fixes
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+        
+        // Vérifier si l'utilisateur existe déjà
+        setTimeout(async () => {
+          const userId = await AsyncStorage.getItem('userId');
+          
+          if (userId) {
+            // UserId existe -> Demander le code PIN
+            console.log('🔑 UserId trouvé -> Redirection vers Login');
+            router.replace('/auth/login');
+          } else {
+            // Pas d'userId -> Inscription
+            console.log('📝 Pas d\'userId -> Redirection vers Register');
+            router.replace('/auth/register');
+          }
+        }, 1000);
+        
+      } else {
+        console.log('❌ Backend erreur');
+        setBackendStatus('error');
+        handleBackendError();
+      }
+      
+    } catch (error) {
+      console.log('❌ Erreur de connexion:', error);
+      setBackendStatus('error');
+      handleBackendError();
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleBackendError = () => {
+    // Animation d'erreur : les points deviennent rouges et clignotent en rouge
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot1Anim, {
+            toValue: 0.3,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(100),
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.3,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(200),
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.3,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    ).start();
+    
+    // Afficher l'alerte après un court délai
+    setTimeout(() => {
+      Alert.alert(
+        'Erreur de connexion',
+        'Impossible de se connecter au serveur. Vérifiez votre connexion Internet et réessayez.',
+        [
+          {
+            text: 'Réessayer',
+            onPress: () => {
+              // Réinitialiser les animations
+              dot1Anim.setValue(0);
+              dot2Anim.setValue(0);
+              dot3Anim.setValue(0);
+              setBackendStatus('pending');
+              checkBackendConnection();
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    }, 1500);
+  };
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -129,17 +317,20 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.heroSection}>
-            {/* Logo central agrandi */}
-            <Animated.View
-              style={[
-                styles.logoContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ scale: scaleAnim }],
-                }
-              ]}
-            >
-              <View style={styles.logoBackground}>
+            {/* Logo central avec animation */}
+            <View style={styles.logoContainer}>
+              <Animated.View
+                style={[
+                  styles.logoWrapper,
+                  {
+                    opacity: fadeAnim,
+                    transform: [
+                      { scale: scaleAnim },
+                      { scale: pulseAnim }
+                    ],
+                  }
+                ]}
+              >
                 <LinearGradient
                   colors={['#00d2ff', '#3a7bd5', '#667eea']}
                   style={styles.logoGradient}
@@ -165,8 +356,49 @@ export default function HomeScreen() {
                     { transform: [{ rotate: spin }] }
                   ]}
                 />
+              </Animated.View>
+
+              {/* Points de chargement juste en dessous de l'icône */}
+              <View style={styles.dotsContainer}>
+                <Animated.View 
+                  style={[
+                    styles.dot,
+                    { 
+                      opacity: dot1Anim,
+                      backgroundColor: backendStatus === 'success' ? '#4CAF50' : 
+                                    backendStatus === 'error' ? '#F44336' : '#00d2ff'
+                    }
+                  ]} 
+                />
+                <Animated.View 
+                  style={[
+                    styles.dot,
+                    { 
+                      opacity: dot2Anim,
+                      backgroundColor: backendStatus === 'success' ? '#4CAF50' : 
+                                    backendStatus === 'error' ? '#F44336' : '#00d2ff'
+                    }
+                  ]} 
+                />
+                <Animated.View 
+                  style={[
+                    styles.dot,
+                    { 
+                      opacity: dot3Anim,
+                      backgroundColor: backendStatus === 'success' ? '#4CAF50' : 
+                                    backendStatus === 'error' ? '#F44336' : '#00d2ff'
+                    }
+                  ]} 
+                />
               </View>
-            </Animated.View>
+
+              {/* Message d'état */}
+              <Text style={styles.statusMessage}>
+                {backendStatus === 'success' ? 'Connexion établie ✓' :
+                 backendStatus === 'error' ? 'Échec de connexion' :
+                 'Vérification du serveur...'}
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </LinearGradient>
@@ -211,23 +443,24 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingTop: height * 0.2,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 40,
   },
   heroSection: {
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    minHeight: height * 0.6,
+    alignItems: 'center',
   },
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoBackground: {
+  logoWrapper: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 30, // Espace pour les points
   },
   logoGradient: {
     width: circleSize,
@@ -267,5 +500,28 @@ const styles = StyleSheet.create({
     borderRadius: outerRingSize / 2,
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.3)',
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    height: 40,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginHorizontal: 6,
+    backgroundColor: '#00d2ff',
+  },
+  statusMessage: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 10,
+    opacity: 0.9,
+    letterSpacing: 0.5,
   },
 });

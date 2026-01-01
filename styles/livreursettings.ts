@@ -501,13 +501,67 @@ export const styles = StyleSheet.create({
     color: 'blue',
   },
 
-  // Ajoutez ces styles dans votre fichier styles/clientsetting
-kycMessageSubText: {
-  fontSize: 14,
-  textAlign: 'center',
-  marginTop: 8,
-  opacity: 0.8,
-},
-
-
+  kycMessageSubText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    opacity: 0.8,
+  },
+  kycMessage: {
+    alignItems: 'center',
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  kycMessageText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  submitKYCButtonDisabled: {
+    opacity: 0.5,
+  },
+  logoutHeaderButton: {
+    padding: 4,
+  },
+  loadingText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#666',
+  },
+  errorContainer: {
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#d32f2f',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  retryButton: {
+    backgroundColor: '#1976D2',
+    padding: 10,
+    borderRadius: 5,
+    paddingHorizontal: 20,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  zeroBalanceMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#fff3e0',
+    borderRadius: 8,
+  },
+  zeroBalanceText: {
+    fontSize: 14,
+    color: '#f57c00',
+    marginLeft: 8,
+  },
 });

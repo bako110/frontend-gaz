@@ -24,6 +24,8 @@ import { useLivreurState } from './livreur/livreurState';
 import { useExitAlert } from '@/app/hooks/useExitAlert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { generateOrderId } from '@/utils/orderUtils';
+import AvailabilityToggle from '@/components/livreur/AvailabilityToggle';
+import NearbyDistributors from '@/components/livreur/NearbyDistributors';
 
 const LivreurDashboard = () => {
   // Gestion de la sortie de l'application
@@ -915,11 +917,29 @@ const LivreurDashboard = () => {
               const diff = todayStats.revenus - yesterdayStats.revenus;
               const percentage = ((diff / yesterdayStats.revenus) * 100).toFixed(1);
               const sign = diff >= 0 ? '+' : '';
-              return `${sign}${percentage}% vs hier`;
+              return `${sign}${((diff / yesterdayStats.revenus) * 100).toFixed(1)}% vs hier`;
             })()} 
             color="#4CAF50" 
           />
         </View>
+
+        {/* Section Disponibilité */}
+        <View style={styles.section}>
+          <AvailabilityToggle 
+            livreurId={userInfo.livreurId}
+            onStatusChange={(isAvailable) => {
+              console.log('Statut disponibilité changé:', isAvailable);
+              onRefresh();
+            }}
+          />
+        </View>
+
+        {/* Section Distributeurs Proches */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Distributeurs proches</Text>
+          <NearbyDistributors livreurId={userInfo.livreurId} maxDistance={5000} />
+        </View>
+
         <WeekChart />
         <View style={styles.section}>
           <View style={styles.sectionHeader}>

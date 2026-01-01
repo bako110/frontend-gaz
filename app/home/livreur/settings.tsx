@@ -20,6 +20,7 @@ import { styles } from '@/styles/livreursettings';
 import { API_BASE_URL } from '@/service/config';
 import LivreurFooter from './LivreurFooter';
 import { useTheme } from '@/contexts/ThemeContext';
+import HelpSupportModal from '@/components/HelpSupportModal';
 
 export default function SettingsScreen() {
   const { isDarkMode, toggleDarkMode } = useTheme();
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
     name: '',
     phone: '',
     address: '',
+    email: '',
     balance: 0,
     photo: null,
   });
@@ -52,6 +54,16 @@ export default function SettingsScreen() {
   const [kycStatus, setKycStatus] = useState('non_verifie');
   const [isSubmittingKYC, setIsSubmittingKYC] = useState(false);
 
+  // États pour l'édition du profil
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editZone, setEditZone] = useState('');
+  const [editVehicleType, setEditVehicleType] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -66,11 +78,14 @@ export default function SettingsScreen() {
       const userProfileStr = await AsyncStorage.getItem('userProfile');
       const parsedData = userProfileStr ? JSON.parse(userProfileStr) : JSON.parse(userDataStr || '{}');
       const user = userProfileStr ? parsedData.user : parsedData;
+      const profile = parsedData?.profile || {};
+      
       setClientInfo({
-        name: user?.name || parsedData?.profile?.name || 'Livreur',
-        phone: user?.phone || parsedData?.profile?.phone || 'Non défini',
-        address: user?.address || parsedData?.profile?.address || 'Non définie',
-        photo: user?.photo || parsedData?.profile?.photo || null,
+        name: user?.name || profile?.name || 'Livreur',
+        phone: user?.phone || profile?.phone || 'Non défini',
+        address: profile?.address || user?.address || 'Non définie',
+        email: profile?.email || user?.email || '',
+        photo: user?.photo || profile?.photo || null,
       });
     } catch (error) {
       console.error("Erreur chargement données:", error);
@@ -187,7 +202,11 @@ export default function SettingsScreen() {
 
   const handleChangePin = () => setIsPinModalVisible(true);
 
-  const handlePinChangeSubmit = () => {
+  const handlePinChangeSubmit = async () => {
+    if (!currentPin || currentPin.length !== 4) {
+      Alert.alert('Erreur', 'Veuillez entrer votre ancien PIN (4 chiffres).');
+      return;
+    }
     if (newPin !== confirmPin) {
       Alert.alert('Erreur', 'Les nouveaux codes PIN ne correspondent pas.');
       return;
@@ -196,11 +215,39 @@ export default function SettingsScreen() {
       Alert.alert('Erreur', 'Le code PIN doit comporter 4 chiffres.');
       return;
     }
-    Alert.alert('Succès', 'Votre code PIN a été changé avec succès.');
-    setIsPinModalVisible(false);
-    setCurrentPin('');
-    setNewPin('');
-    setConfirmPin('');
+
+    try {
+      setIsLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/pin/change-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: clientInfo.phone,
+          currentPin: currentPin,
+          newPin: newPin,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert('Succès', 'Votre code PIN a été changé avec succès.');
+        setIsPinModalVisible(false);
+        setCurrentPin('');
+        setNewPin('');
+        setConfirmPin('');
+      } else {
+        Alert.alert('Erreur', data.error || 'Erreur lors du changement de PIN.');
+      }
+    } catch (error) {
+      console.error('Erreur changement PIN:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors du changement de PIN.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const pickDocument = async () => {
@@ -262,12 +309,99 @@ export default function SettingsScreen() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets.length > 0) {
-        setClientInfo(prev => ({ ...prev, photo: result.assets[0].uri }));
-        Alert.alert('Succès', 'Photo de profil changée avec succès');
+        setSelectedPhoto(result.assets[0]);
+        Alert.alert('Succès', 'Photo de profil sélectionnée');
       }
     } catch (error) {
       console.error('Erreur changement photo:', error);
       Alert.alert('Erreur', 'Erreur lors du changement de photo');
+    }
+  };
+
+  const startEditingProfile = () => {
+    setEditName(clientInfo.name);
+    setEditAddress(clientInfo.address);
+    setEditEmail(clientInfo.email);
+    setSelectedPhoto(null);
+    setIsEditingProfile(true);
+  };
+
+  const saveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+      
+      const livreurData = await AsyncStorage.getItem('userProfile');
+      if (!livreurData) {
+        Alert.alert('Erreur', 'Données utilisateur non trouvées');
+        return;
+      }
+
+      const parsedData = JSON.parse(livreurData);
+      const userId = parsedData.user?.id || parsedData.id;
+      
+      if (!userId) {
+        Alert.alert('Erreur', 'ID utilisateur non trouvé');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('name', editName);
+      formData.append('address', editAddress);
+      if (editEmail) {
+        formData.append('email', editEmail);
+      }
+
+      if (selectedPhoto) {
+        formData.append('photo', {
+          uri: selectedPhoto.uri,
+          type: 'image/jpeg',
+          name: 'profile_photo.jpg'
+        } as any);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/${userId}/profile`, {
+        method: 'PUT',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setClientInfo(prev => ({
+          ...prev,
+          name: data.user.name,
+          address: data.profile?.address || editAddress,
+          email: data.profile?.email || editEmail,
+          photo: data.user.photo || (selectedPhoto ? selectedPhoto.uri : prev.photo),
+        }));
+
+        const updatedProfile = {
+          ...parsedData,
+          user: {
+            ...parsedData.user,
+            name: data.user.name,
+            photo: data.user.photo,
+          },
+          profile: {
+            ...parsedData.profile,
+            address: data.profile?.address || editAddress,
+            email: data.profile?.email || editEmail,
+          }
+        };
+
+        await AsyncStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+
+        Alert.alert('Succès', 'Profil mis à jour avec succès');
+        setIsEditingProfile(false);
+        setSelectedPhoto(null);
+      } else {
+        throw new Error(data.message || 'Erreur lors de la mise à jour du profil');
+      }
+    } catch (error: any) {
+      console.error('Erreur sauvegarde profil:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de mettre à jour le profil');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -304,13 +438,13 @@ export default function SettingsScreen() {
         uri: idDocument.uri,
         type: 'image/jpeg',
         name: 'id_document.jpg'
-      });
+      } as any);
 
       formData.append('livePhoto', {
         uri: livePhoto.uri,
         type: 'image/jpeg',
         name: 'live_photo.jpg'
-      });
+      } as any);
 
       formData.append('livreurId', livreurId);
       formData.append('submissionDate', new Date().toISOString());
@@ -344,7 +478,7 @@ export default function SettingsScreen() {
         }]
       );
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur soumission KYS livreur:', error);
       Alert.alert(
         'Erreur',
@@ -395,9 +529,9 @@ export default function SettingsScreen() {
       onPress: () => setIsLanguageModalVisible(true),
     },
     {
-      id: 'help',
-      label: 'Aide & Support',
-      icon: <Ionicons name="help-circle-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
+      id: 'messaging',
+      label: 'Messagerie',
+      icon: <Ionicons name="chatbubbles-outline" size={22} color={isDarkMode ? '#fff' : '#000'} />,
       onPress: () => setIsHelpModalVisible(true),
     },
     {
@@ -572,31 +706,100 @@ export default function SettingsScreen() {
                 ) : (
                   <Ionicons name="person-circle" size={80} color={isDarkMode ? '#fff' : '#1976D2'} />
                 )}
-                <TouchableOpacity style={styles.editPhotoButton} onPress={changeProfilePhoto}>
-                  <Text style={styles.editPhotoText}>Changer la photo</Text>
+                {isEditingProfile && (
+                  <TouchableOpacity style={styles.editPhotoButton} onPress={changeProfilePhoto}>
+                    <Text style={styles.editPhotoText}>Changer la photo</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {isEditingProfile ? (
+                <View style={styles.profileInfoModal}>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Nom complet</Text>
+                    <TextInput
+                      style={[styles.input, isDarkMode ? styles.darkInput : styles.lightInput]}
+                      value={editName}
+                      onChangeText={setEditName}
+                      placeholder="Votre nom"
+                      placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                    />
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Téléphone</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.phone}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Adresse</Text>
+                    <TextInput
+                      style={[styles.input, isDarkMode ? styles.darkInput : styles.lightInput]}
+                      value={editAddress}
+                      onChangeText={setEditAddress}
+                      placeholder="Votre adresse"
+                      placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                    />
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Email</Text>
+                    <TextInput
+                      style={[styles.input, isDarkMode ? styles.darkInput : styles.lightInput]}
+                      value={editEmail}
+                      onChangeText={setEditEmail}
+                      placeholder="Votre email"
+                      placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.profileInfoModal}>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Nom complet</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.name}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Téléphone</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.phone}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Adresse</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.address}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Email</Text>
+                    <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.email || 'Non défini'}</Text>
+                  </View>
+                </View>
+              )}
+              
+              {isEditingProfile ? (
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.cancelButton, isDarkMode ? styles.darkCancelButton : styles.lightCancelButton]}
+                    onPress={() => setIsEditingProfile(false)}
+                  >
+                    <Text style={styles.buttonText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.submitButton} 
+                    onPress={saveProfile}
+                    disabled={isSavingProfile}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isSavingProfile ? 'Enregistrement...' : 'Enregistrer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  style={[styles.editProfileButton, { backgroundColor: '#1565C0', padding: 15, borderRadius: 8, marginTop: 20 }]} 
+                  onPress={startEditingProfile}
+                >
+                  <Text style={[styles.editProfileText, { color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: 'bold' }]}>
+                    Modifier le profil
+                  </Text>
                 </TouchableOpacity>
-              </View>
-              <View style={styles.profileInfoModal}>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Nom complet</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.name}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Téléphone</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.phone}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Adresse</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>{clientInfo.address}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, isDarkMode ? styles.darkText : styles.lightText]}>Email</Text>
-                  <Text style={[styles.infoValue, isDarkMode ? styles.darkText : styles.lightText]}>livreur@example.com</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.editProfileButton}>
-                <Text style={styles.editProfileText}>Modifier le profil</Text>
-              </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -837,24 +1040,13 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      <Modal visible={isHelpModalVisible} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, isDarkMode ? styles.darkModal : styles.lightModal]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-                Aide & Support
-              </Text>
-              <TouchableOpacity onPress={() => setIsHelpModalVisible(false)}>
-                <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.modalDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-              Contact : support@app.bf{'\n'}
-              Tél : +226 70 00 00 00
-            </Text>
-          </View>
-        </View>
-      </Modal>
+      <HelpSupportModal
+        visible={isHelpModalVisible}
+        onClose={() => setIsHelpModalVisible(false)}
+        isDarkMode={isDarkMode}
+        userRole="livreur"
+        userModel="Livreur"
+      />
 
       <Modal visible={isAboutModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
