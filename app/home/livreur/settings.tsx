@@ -54,6 +54,7 @@ export default function SettingsScreen() {
   const [idDocumentBack, setIdDocumentBack] = useState<ImagePickerAsset | null>(null);
   const [facePhoto, setFacePhoto] = useState<ImagePickerAsset | null>(null);
   const [kycStatus, setKycStatus] = useState('non_verifie');
+  const [kycComments, setKycComments] = useState('');
   const [isSubmittingKYC, setIsSubmittingKYC] = useState(false);
   const [currentKycStep, setCurrentKycStep] = useState(1);
   const [documentFrontQuality, setDocumentFrontQuality] = useState<'analyzing' | 'good' | 'poor' | null>(null);
@@ -188,21 +189,33 @@ export default function SettingsScreen() {
       const parsedData = JSON.parse(livreurData);
       const livreurId = parsedData.id || parsedData.user?.id;
 
-      if (!livreurId) return;
+      if (!livreurId) {
+        console.log('⚠️ checkKYCStatus - livreurId manquant');
+        return;
+      }
 
-      const response = await fetch(`${API_BASE_URL}/auth/livreur/${livreurId}/kyc`, {
+      console.log('🔍 Récupération statut KYC pour livreur:', livreurId);
+
+      const response = await fetch(`${API_BASE_URL}/auth/${livreurId}/kyc`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('📡 Statut réponse KYC:', response.status);
+
       if (response.ok) {
         const kycData = await response.json();
+        console.log('✅ Statut KYC récupéré:', kycData.status);
         setKycStatus(kycData.status || 'non_verifie');
+      } else {
+        console.log('⚠️ Erreur récupération KYC, status par défaut: non_verifie');
+        setKycStatus('non_verifie');
       }
     } catch (error) {
-      console.error("Erreur vérification statut KYS livreur:", error);
+      console.error("❌ Erreur vérification statut KYS livreur:", error);
+      setKycStatus('non_verifie');
     }
   };
 
@@ -494,7 +507,7 @@ export default function SettingsScreen() {
       formData.append('livreurId', livreurId);
       formData.append('submissionDate', new Date().toISOString());
 
-      const response = await fetch(`${API_BASE_URL}/auth/livreur/${livreurId}/kyc`, {
+      const response = await fetch(`${API_BASE_URL}/auth/${livreurId}/kyc`, {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -512,7 +525,7 @@ export default function SettingsScreen() {
 
       Alert.alert(
         'Demande soumise',
-        'Votre demande de vérification KYS a été soumise avec succès. Vous serez notifié une fois la vérification terminée.',
+        'Votre demande de vérification KYS a été soumise avec succès.',
         [{
           text: 'OK',
           onPress: () => {
@@ -527,10 +540,7 @@ export default function SettingsScreen() {
 
     } catch (error: any) {
       console.error('Erreur soumission KYS livreur:', error);
-      Alert.alert(
-        'Erreur',
-        error.message || 'Une erreur est survenue lors de la soumission de votre demande KYS. Veuillez réessayer.'
-      );
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue.');
     } finally {
       setIsSubmittingKYC(false);
     }
@@ -873,7 +883,7 @@ export default function SettingsScreen() {
                 </Text>
               </View>
 
-              {/* Afficher le message si le statut est "en_cours" */}
+              {/* Afficher le message si le statut est "en_cours" ou "verifie" */}
               {(kycStatus === 'en_cours' || kycStatus === 'verifie') && (
                 <View style={styles.kycMessage}>
                   <Ionicons
@@ -897,6 +907,35 @@ export default function SettingsScreen() {
                       Vous ne pouvez pas soumettre de nouveaux documents pendant la vérification.
                     </Text>
                   )}
+                </View>
+              )}
+
+              {/* Afficher le message de rejet de l'admin */}
+              {kycStatus === 'rejete' && (
+                <View style={[styles.kycMessage, { backgroundColor: '#ffebee', borderColor: '#f44336' }]}>
+                  <Ionicons
+                    name="close-circle"
+                    size={32}
+                    color="#f44336"
+                  />
+                  <Text style={[
+                    styles.kycMessageText,
+                    { color: '#d32f2f', fontWeight: 'bold' }
+                  ]}>
+                    Votre demande de vérification a été rejetée
+                  </Text>
+                  <View style={styles.rejectionReasonBox}>
+                    <Text style={styles.rejectionReasonLabel}>Raison du rejet :</Text>
+                    <Text style={styles.rejectionReasonText}>
+                      {kycComments || 'Aucune raison fournie'}
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.kycMessageSubText,
+                    { color: '#666', marginTop: 10 }
+                  ]}>
+                    Veuillez corriger les problèmes mentionnés et soumettre à nouveau vos documents.
+                  </Text>
                 </View>
               )}
 

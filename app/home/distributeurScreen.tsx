@@ -29,6 +29,7 @@ import { API_BASE_URL } from '@/service/config';
 import { useExitAlert } from '@/app/hooks/useExitAlert';
 import { generateOrderId, generateOrderNumber } from '@/utils/orderUtils';
 import RankedLivreurs from '@/components/distributeur/RankedLivreurs';
+import WelcomeModal from '@/components/WelcomeModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -283,6 +284,11 @@ export default function DistributorDashboard() {
   const [inventory, setInventory] = useState<Product[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [addProductModalVisible, setAddProductModalVisible] = useState(false);
+  
+  // États pour le message de bienvenue
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState('');
   
   // Configuration des types de gaz avec noms et prix automatiques
   const [gasConfig] = useState(GAS_TYPES_CONFIG);
@@ -1930,7 +1936,7 @@ export default function DistributorDashboard() {
   const renderInventory = () => (
     <ScrollView 
       style={styles.content}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      contentContainerStyle={{ paddingBottom: 120 }}
     >
       <View style={styles.section}>
         <View style={styles.sectionHeader}>

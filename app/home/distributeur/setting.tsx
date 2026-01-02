@@ -611,7 +611,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </LinearGradient>
 
-        <ScrollView style={[styles.scrollContent, { paddingBottom: 20 }]} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={[styles.profileSection, isDarkMode ? styles.darkCard : styles.lightCard]}>
             <View style={styles.avatarContainer}>

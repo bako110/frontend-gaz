@@ -74,6 +74,9 @@ export default function AvailabilityToggle({
       return;
     }
 
+    console.log('🔄 Toggle disponibilité - livreurId:', livreurId);
+    console.log('🔄 Nouvelle valeur:', newValue);
+
     setIsLoading(true);
 
     try {
@@ -81,28 +84,38 @@ export default function AvailabilityToggle({
         await getCurrentLocation();
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/livreurs/${livreurId}/availability`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            isAvailable: newValue,
-            location: currentLocation
-              ? {
-                  latitude: currentLocation.coords.latitude,
-                  longitude: currentLocation.coords.longitude,
-                  accuracy: currentLocation.coords.accuracy,
-                  timestamp: new Date().toISOString(),
-                }
-              : null,
-          }),
-        }
-      );
+      const url = `${API_BASE_URL}/livreurs/${livreurId}/availability`;
+      console.log('📡 URL appelée:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isAvailable: newValue,
+          location: currentLocation
+            ? {
+                latitude: currentLocation.coords.latitude,
+                longitude: currentLocation.coords.longitude,
+                accuracy: currentLocation.coords.accuracy,
+                timestamp: new Date().toISOString(),
+              }
+            : null,
+        }),
+      });
+
+      console.log('📡 Status de la réponse:', response.status);
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Réponse non-JSON:', text.substring(0, 200));
+        throw new Error('Le serveur a retourné une réponse invalide');
+      }
 
       const data = await response.json();
+      console.log('📡 Réponse du serveur:', data);
 
       if (response.ok && data.success) {
         setIsAvailable(newValue);

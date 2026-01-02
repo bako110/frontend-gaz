@@ -116,12 +116,19 @@ export default function ClientDashboard() {
         if (!userIdToUse) {
           throw new Error("ID utilisateur manquant. Veuillez vous reconnecter.");
         }
+        
+        // Debug: vérifier la photo
+        const photoUrl = user?.photo || parsedData?.profile?.photo || null;
+        console.log('📸 Photo URL chargée:', photoUrl);
+        console.log('📦 User data:', { name: user?.name, photo: user?.photo });
+        console.log('📦 Profile data:', { name: parsedData?.profile?.name, photo: parsedData?.profile?.photo });
+        
         setClientInfo({
           name: user?.name || parsedData?.profile?.name || 'Utilisateur',
           address: user?.address || parsedData?.profile?.address || 'Adresse non définie',
           phone: user?.phone || parsedData?.profile?.phone || 'Téléphone non défini',
           credit: user?.credit || parsedData?.profile?.credit || 0,
-          photo: user?.photo || parsedData?.profile?.photo || null,
+          photo: photoUrl,
           _id: userIdToUse,
           lastLocation: user?.lastLocation || null,
         });
@@ -1201,6 +1208,7 @@ const fetchOrders = useCallback(async () => {
       </LinearGradient>
       <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {renderHomeContent()}

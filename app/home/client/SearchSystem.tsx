@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '@/service/config';
+import WelcomeModal from '@/components/WelcomeModal';
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +27,9 @@ const SearchSystem = ({ visible, onClose, onProductSelect, clientLocation }) => 
   const [selectedNeighborhood, setSelectedNeighborhood] = useState('all');
   const [filterStock, setFilterStock] = useState(false);
   const [neighborhoods, setNeighborhoods] = useState([]);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState('');
 
   const brands = [
     { id: 'all', label: 'Toutes' },

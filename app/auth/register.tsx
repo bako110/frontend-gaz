@@ -330,27 +330,42 @@ export default function RegisterScreen() {
         ))}
       </View>
 
-      {/* NOUVEAU BOUTON DE CONNEXION */}
+      {/* BOUTON DE CONNEXION SIMPLE ET PROFESSIONNEL */}
       <View style={regstersStyles.loginRedirectContainer}>
-        <Text style={[regstersStyles.loginRedirectText, { color: '#718096' }]}>
+        <Text style={[regstersStyles.loginRedirectText, { color: '#718096', fontSize: 15 }]}>
           Vous avez déjà un compte ?
         </Text>
         <TouchableOpacity
-          style={regstersStyles.loginButton}
+          style={{
+            marginTop: 12,
+            paddingVertical: 14,
+            paddingHorizontal: 32,
+            backgroundColor: '#fff',
+            borderRadius: 12,
+            borderWidth: 1.5,
+            borderColor: '#2E7D32',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
           onPress={() => router.push('/auth/login_with_phone')}
+          activeOpacity={0.8}
         >
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={regstersStyles.loginButtonGradient}
-          >
-            <Text style={regstersStyles.loginButtonText}>Se connecter</Text>
-          </LinearGradient>
+          <Text style={{ 
+            color: '#2E7D32', 
+            fontSize: 16, 
+            fontWeight: '600',
+            textAlign: 'center',
+          }}>
+            Se connecter
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
 };
-
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: step === 0 ? '#FFFFFF' : getGradientColors()[0] }}>

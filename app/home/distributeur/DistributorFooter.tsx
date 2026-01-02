@@ -92,11 +92,15 @@ export default function DistributorFooter() {
 
 const styles = StyleSheet.create({
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'stretch',
-    height: 95,
+    height: 110,
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     borderTopLeftRadius: 20,
@@ -106,7 +110,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    paddingBottom: 20,
+    paddingBottom: 35,
   },
   footerTab: {
     flex: 1,

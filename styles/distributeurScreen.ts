@@ -1016,7 +1016,7 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 15,
     left: 0,
     right: 0,
     backgroundColor: '#fff',

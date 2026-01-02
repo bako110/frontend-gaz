@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    height: 95,
+    height: 110,
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     borderTopLeftRadius: 20,
@@ -737,7 +737,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    paddingBottom: 20,
+    paddingBottom: 35,
   },
   footerTab: {
     justifyContent: 'center',
@@ -746,7 +746,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     minWidth: 70,
     borderRadius: 14,
-    transition: 'all 0.3s ease',
   },
   activeTab: {
     backgroundColor: '#E8F5E9',

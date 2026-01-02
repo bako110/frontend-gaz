@@ -899,7 +899,7 @@ const LivreurDashboard = () => {
         </View>
       </Modal>
 
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 100 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1565C0']} tintColor="#1565C0" />} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 120 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1565C0']} tintColor="#1565C0" />} showsVerticalScrollIndicator={false}>
         <View style={styles.statsContainer}>
           <StatCard 
             icon="car-outline" 

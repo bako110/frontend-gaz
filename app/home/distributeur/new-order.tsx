@@ -822,7 +822,7 @@ export default function NewOrderScreen({ navigation }) {
         
         <ScrollView
           style={styles.content}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
