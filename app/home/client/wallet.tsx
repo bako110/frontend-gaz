@@ -266,10 +266,29 @@ export default function WalletScreen() {
       if (!userToken) throw new Error('Token d\'authentification manquant');
       const userDataStr = await AsyncStorage.getItem('userData');
       const userProfileStr = await AsyncStorage.getItem('userProfile');
+      console.log('📦 userDataStr:', userDataStr ? 'Présent' : 'Absent');
+      console.log('📦 userProfileStr:', userProfileStr ? 'Présent' : 'Absent');
+      if (!userDataStr && !userProfileStr) {
+        throw new Error('Aucune donnée utilisateur trouvée. Veuillez vous reconnecter.');
+      }
       const parsedData = userProfileStr ? JSON.parse(userProfileStr) : JSON.parse(userDataStr);
-      const user = userProfileStr ? parsedData.user : parsedData;
-      const userId = parsedData?.profile?._id || user?._id || parsedData?.id;
-      if (!userId) throw new Error('ID utilisateur non trouvé');
+      console.log('📦 Structure parsedData:', {
+        hasUser: !!parsedData.user,
+        hasProfile: !!parsedData.profile,
+        hasId: !!parsedData.id,
+        userId: parsedData.user?.id || parsedData.user?._id,
+        profileId: parsedData.profile?._id,
+        directId: parsedData.id
+      });
+      const userId = parsedData.user?.id || 
+                     parsedData.user?._id || 
+                     parsedData.id || 
+                     parsedData._id;
+      console.log('🔑 userId extrait:', userId);
+      if (!userId) {
+        console.error('❌ Impossible de trouver userId dans:', parsedData);
+        throw new Error('ID utilisateur non trouvé. Veuillez vous reconnecter.');
+      }
       const newCredit = transactionType === 'recharge' ? (clientInfo.credit || 0) + newAmount : (clientInfo.credit || 0) - newAmount;
       const transactionData = {
         credit: newCredit,
@@ -296,7 +315,30 @@ export default function WalletScreen() {
         throw new Error(`Réponse inattendue du serveur (${response.status}): ${textResponse.substring(0, 100)}`);
       }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || `Erreur ${response.status} lors de la transaction`);
+      
+      // Vérifier si c'est une erreur KYC
+      if (!response.ok) {
+        if (response.status === 403 && data.kycRequired) {
+          // Erreur KYC - afficher un message spécifique
+          Alert.alert(
+            'Vérification KYC requise',
+            data.message || 'Vous devez vérifier votre identité pour effectuer des transactions.',
+            [
+              { text: 'Plus tard', style: 'cancel' },
+              { 
+                text: 'Vérifier maintenant', 
+                onPress: () => {
+                  // Rediriger vers les paramètres pour vérifier le KYC
+                  router.push('/home/client/setting');
+                }
+              }
+            ]
+          );
+          return;
+        }
+        throw new Error(data.message || `Erreur ${response.status} lors de la transaction`);
+      }
+      
       if (data.success) {
         await fetchWalletTransactions();
         Alert.alert('Succès', transactionType === 'recharge' ? `${newAmount.toLocaleString()} FCFA ajouté à votre wallet !` : `${newAmount.toLocaleString()} FCFA retiré de votre wallet !`);
@@ -305,6 +347,12 @@ export default function WalletScreen() {
     } catch (error) {
       console.error('Erreur transaction wallet:', error);
       let errorMessage = error.message || 'Impossible de traiter la transaction.';
+      
+      // Message plus clair pour l'erreur "Utilisateur introuvable"
+      if (errorMessage.includes('Utilisateur introuvable')) {
+        errorMessage = 'Erreur de connexion. Veuillez vous reconnecter.';
+      }
+      
       Alert.alert('Erreur', errorMessage);
     } finally {
       setIsLoading(false);

@@ -219,7 +219,7 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    width: '80%',
+    width: '85%',
     padding: 20,
     borderRadius: 10,
     maxHeight: '80%',
@@ -379,10 +379,12 @@ export const styles = StyleSheet.create({
 
   // Modale KYS
   kycModal: {
-    width: '90%',
+    width: '95%',
+    maxHeight: '90%',
   },
   kycContent: {
     paddingBottom: 16,
+    maxHeight: '100%',
   },
   kycStatus: {
     flexDirection: 'row',
@@ -563,5 +565,188 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#f57c00',
     marginLeft: 8,
+  },
+
+  // Nouveaux styles pour le KYC moderne
+  progressIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+    paddingHorizontal: 20,
+  },
+  progressDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#bdbdbd',
+  },
+  progressDotActive: {
+    backgroundColor: '#1565C0',
+    borderColor: '#1565C0',
+  },
+  progressDotText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  progressLine: {
+    width: 30,
+    height: 2,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 3,
+  },
+  progressLineActive: {
+    backgroundColor: '#1565C0',
+  },
+  scanStepContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  scanIconContainer: {
+    marginBottom: 10,
+    padding: 12,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 40,
+  },
+  scanStepTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  scanStepDescription: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 15,
+    lineHeight: 18,
+    opacity: 0.8,
+  },
+  previewContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  previewImage: {
+    width: width * 0.55,
+    height: width * 0.35,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#1565C0',
+  },
+  previewImageFace: {
+    width: width * 0.4,
+    height: width * 0.52,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#1565C0',
+  },
+  retakeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ff9800',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    gap: 4,
+  },
+  retakeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1565C0',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 6,
+  },
+  scanButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4caf50',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 6,
+  },
+  nextButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  stepNavigation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 15,
+    marginTop: 10,
+    gap: 10,
+  },
+  backStepButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#1565C0',
+    backgroundColor: 'transparent',
+    gap: 4,
+  },
+  backStepButtonText: {
+    color: '#1565C0',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  qualityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 6,
+  },
+  qualityBadgeAnalyzing: {
+    backgroundColor: '#FFF3E0',
+  },
+  qualityBadgeGood: {
+    backgroundColor: '#E8F5E9',
+  },
+  qualityBadgePoor: {
+    backgroundColor: '#FFEBEE',
+  },
+  qualityBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  qualityTextAnalyzing: {
+    color: '#F57C00',
+  },
+  qualityTextGood: {
+    color: '#4CAF50',
+  },
+  qualityTextPoor: {
+    color: '#F44336',
   },
 });

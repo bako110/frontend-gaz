@@ -56,20 +56,36 @@ export default function NearbyDistributors({
         return;
       }
 
+      console.log(`🔍 Récupération des distributeurs proches pour livreur: ${livreurId}`);
       const response = await fetch(
         `${API_BASE_URL}/livreurs/${livreurId}/nearby-distributors?maxDistance=${maxDistance}`
       );
 
+      // Vérifier le content-type de la réponse
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('❌ Réponse non-JSON reçue:', contentType);
+        const text = await response.text();
+        console.error('Contenu de la réponse:', text.substring(0, 200));
+        throw new Error('Le serveur a retourné une réponse invalide. Vérifiez que le serveur backend est démarré.');
+      }
+
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setDistributors(data.data);
+        console.log(`✅ ${data.count} distributeurs trouvés`);
+        setDistributors(data.data || []);
       } else {
         throw new Error(data.message || 'Erreur lors de la récupération');
       }
     } catch (error: any) {
-      console.error('Erreur fetch distributeurs:', error);
-      setError(error.message || 'Impossible de charger les distributeurs');
+      console.error('❌ Erreur fetch distributeurs:', error);
+      if (error.message.includes('JSON Parse error')) {
+        setError('Erreur de connexion au serveur. Vérifiez que le backend est démarré.');
+      } else {
+        setError(error.message || 'Impossible de charger les distributeurs');
+      }
+      setDistributors([]);
     } finally {
       setLoading(false);
       setRefreshing(false);

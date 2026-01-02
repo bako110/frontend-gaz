@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { ImagePickerAsset } from 'expo-image-picker';
 import styles from '@/styles/clientsetting';
 import { API_BASE_URL } from '@/service/config';
 import DistributorFooter from './DistributorFooter';
@@ -48,10 +49,12 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // États pour KYS
-  const [idDocument, setIdDocument] = useState(null);
-  const [livePhoto, setLivePhoto] = useState(null);
+  const [idDocumentFront, setIdDocumentFront] = useState<ImagePickerAsset | null>(null);
+  const [idDocumentBack, setIdDocumentBack] = useState<ImagePickerAsset | null>(null);
+  const [facePhoto, setFacePhoto] = useState<ImagePickerAsset | null>(null);
   const [kycStatus, setKycStatus] = useState('non_verifie');
   const [isSubmittingKYC, setIsSubmittingKYC] = useState(false);
+  const [currentKycStep, setCurrentKycStep] = useState(1);
 
   // États pour l'édition du profil
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -59,7 +62,7 @@ export default function SettingsScreen() {
   const [editAddress, setEditAddress] = useState('');
   const [editZone, setEditZone] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<ImagePickerAsset | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const router = useRouter();
@@ -241,30 +244,25 @@ export default function SettingsScreen() {
     }
   };
 
-  const pickDocument = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', 'La permission de la galerie est nécessaire');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-      if (!result.canceled && result.assets.length > 0) {
-        setIdDocument(result.assets[0]);
-        Alert.alert('Succès', 'Document d\'identité sélectionné avec succès');
-      }
-    } catch (error) {
-      console.error('Erreur sélection document:', error);
-      Alert.alert('Erreur', 'Erreur lors de la sélection du document');
-    }
+  const startEditingProfile = () => {
+    console.log('🔧 Début édition profil');
+    console.log('📋 Données actuelles:', clientInfo);
+    setEditName(clientInfo.name);
+    setEditAddress(clientInfo.address);
+    setEditEmail(clientInfo.email);
+    setEditZone('');
+    setSelectedPhoto(null);
+    setIsEditingProfile(true);
+    console.log('✅ Mode édition activé');
   };
 
-  const takeLivePhoto = async () => {
+  const analyzeImageQuality = async (imageAsset: ImagePickerAsset): Promise<'good' | 'poor'> => {
+    const hasGoodDimensions = (imageAsset.width >= 800 && imageAsset.height >= 600);
+    const hasGoodFileSize = !imageAsset.fileSize || imageAsset.fileSize > 100000;
+    return (hasGoodDimensions && hasGoodFileSize) ? 'good' : 'poor';
+  };
+
+  const scanDocumentFront = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -273,16 +271,60 @@ export default function SettingsScreen() {
       }
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+        aspect: [16, 10],
+        quality: 0.9,
       });
       if (!result.canceled && result.assets.length > 0) {
-        setLivePhoto(result.assets[0]);
-        Alert.alert('Succès', 'Photo en direct capturée avec succès');
+        setIdDocumentFront(result.assets[0]);
+        setCurrentKycStep(2);
       }
     } catch (error) {
-      console.error('Erreur capture photo:', error);
-      Alert.alert('Erreur', 'Erreur lors de la capture de la photo');
+      console.error('Erreur scan recto:', error);
+      Alert.alert('Erreur', 'Erreur lors du scan du recto');
+    }
+  };
+
+  const scanDocumentBack = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'La permission de la caméra est nécessaire');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [16, 10],
+        quality: 0.9,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        setIdDocumentBack(result.assets[0]);
+        setCurrentKycStep(3);
+      }
+    } catch (error) {
+      console.error('Erreur scan verso:', error);
+      Alert.alert('Erreur', 'Erreur lors du scan du verso');
+    }
+  };
+
+  const captureFacePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'La permission de la caméra est nécessaire');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.9,
+        cameraType: ImagePicker.CameraType.front,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        setFacePhoto(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Erreur capture visage:', error);
+      Alert.alert('Erreur', 'Erreur lors de la capture du visage');
     }
   };
 
@@ -307,18 +349,6 @@ export default function SettingsScreen() {
       console.error('Erreur changement photo:', error);
       Alert.alert('Erreur', 'Erreur lors du changement de photo');
     }
-  };
-
-  const startEditingProfile = () => {
-    console.log('🔧 Début édition profil');
-    console.log('📋 Données actuelles:', clientInfo);
-    setEditName(clientInfo.name);
-    setEditAddress(clientInfo.address);
-    setEditEmail(clientInfo.email);
-    setEditZone('');
-    setSelectedPhoto(null);
-    setIsEditingProfile(true);
-    console.log('✅ Mode édition activé');
   };
 
   const saveProfile = async () => {
@@ -419,12 +449,16 @@ export default function SettingsScreen() {
   };
 
   const submitKYC = async () => {
-    if (!idDocument) {
-      Alert.alert('Erreur', 'Veuillez sélectionner votre pièce d\'identité');
+    if (!idDocumentFront) {
+      Alert.alert('Erreur', 'Veuillez scanner le recto de votre pièce d\'identité');
       return;
     }
-    if (!livePhoto) {
-      Alert.alert('Erreur', 'Veuillez prendre une photo en direct');
+    if (!idDocumentBack) {
+      Alert.alert('Erreur', 'Veuillez scanner le verso de votre pièce d\'identité');
+      return;
+    }
+    if (!facePhoto) {
+      Alert.alert('Erreur', 'Veuillez prendre une photo de votre visage');
       return;
     }
 
@@ -445,28 +479,28 @@ export default function SettingsScreen() {
         return;
       }
 
-      // Création du FormData pour l'envoi des fichiers
       const formData = new FormData();
       
-      // Ajout du document d'identité
-      formData.append('idDocument', {
-        uri: idDocument.uri,
+      formData.append('idDocumentFront', {
+        uri: idDocumentFront.uri,
         type: 'image/jpeg',
-        name: 'id_document.jpg'
-      });
+        name: 'id_document_front.jpg'
+      } as any);
 
-      // Ajout de la photo en direct
-      formData.append('livePhoto', {
-        uri: livePhoto.uri,
+      formData.append('idDocumentBack', {
+        uri: idDocumentBack.uri,
         type: 'image/jpeg',
-        name: 'live_photo.jpg'
-      });
+        name: 'id_document_back.jpg'
+      } as any);
 
-      // Ajout des métadonnées
+      formData.append('facePhoto', {
+        uri: facePhoto.uri,
+        type: 'image/jpeg',
+        name: 'face_photo.jpg'
+      } as any);
+
       formData.append('clientId', clientId);
       formData.append('submissionDate', new Date().toISOString());
-
-      console.log('Envoi KYS pour client:', clientId);
 
       const response = await fetch(`${API_BASE_URL}/auth/${clientId}/kyc`, {
         method: 'POST',
@@ -482,30 +516,26 @@ export default function SettingsScreen() {
       }
 
       const result = await response.json();
-      console.log('Réponse KYS:', result);
-
       setKycStatus('en_cours');
       
       Alert.alert(
         'Demande soumise',
-        'Votre demande de vérification KYS a été soumise avec succès. Vous serez notifié une fois la vérification terminée.',
+        'Votre demande de vérification KYS a été soumise avec succès.',
         [{ 
           text: 'OK', 
           onPress: () => {
             setIsKYSModalVisible(false);
-            // Réinitialiser les documents après soumission
-            setIdDocument(null);
-            setLivePhoto(null);
+            setIdDocumentFront(null);
+            setIdDocumentBack(null);
+            setFacePhoto(null);
+            setCurrentKycStep(1);
           }
         }]
       );
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur soumission KYS:', error);
-      Alert.alert(
-        'Erreur',
-        error.message || 'Une erreur est survenue lors de la soumission de votre demande KYS. Veuillez réessayer.'
-      );
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue.');
     } finally {
       setIsSubmittingKYC(false);
     }
@@ -863,154 +893,233 @@ export default function SettingsScreen() {
       </Modal>
 
       <Modal visible={isKYSModalVisible} animationType="slide" transparent>
-  <View style={styles.modalContainer}>
-    <View style={[styles.modalContent, isDarkMode ? styles.darkModal : styles.lightModal, styles.kycModal]}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-          Vérification KYS
-        </Text>
-        <TouchableOpacity onPress={() => setIsKYSModalVisible(false)}>
-          <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.kycContent}>
-        <View style={styles.kycStatus}>
-          <Text style={[styles.kycStatusText, isDarkMode ? styles.darkText : styles.lightText]}>
-            Statut:
-          </Text>
-          <Text style={[styles.kycStatusValue, { color: getKYCStatusColor() }]}>
-            {getKYCStatusText()}
-          </Text>
-        </View>
-        
-        {/* Afficher le message si le statut est "en_cours" */}
-        {(kycStatus === 'en_cours' || kycStatus === 'verifie') && (
-          <View style={styles.kycMessage}>
-            <Ionicons 
-              name={kycStatus === 'verifie' ? "checkmark-circle" : "time"} 
-              size={32} 
-              color={getKYCStatusColor()} 
-            />
-            <Text style={[
-              styles.kycMessageText,
-              isDarkMode ? styles.darkText : styles.lightText
-            ]}>
-              {kycStatus === 'verifie' 
-                ? 'Votre identité a été vérifiée avec succès.' 
-                : 'Votre demande de vérification est en cours de traitement.'}
-            </Text>
-            {kycStatus === 'en_cours' && (
-              <Text style={[
-                styles.kycMessageSubText,
-                isDarkMode ? styles.darkText : styles.lightText
-              ]}>
-                Vous ne pouvez pas soumettre de nouveaux documents pendant la vérification.
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, isDarkMode ? styles.darkModal : styles.lightModal, styles.kycModal]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                Vérification KYS
               </Text>
-            )}
-          </View>
-        )}
-
-        {/* Afficher les étapes d'upload seulement si le statut est "non_verifie" ou "rejete" */}
-        {(kycStatus === 'non_verifie' || kycStatus === 'rejete') && (
-          <>
-            <Text style={[styles.kycDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-              {kycStatus === 'rejete' 
-                ? 'Votre précédente vérification a été rejetée. Veuillez soumettre à nouveau vos documents :'
-                : 'Pour compléter votre vérification KYS, veuillez fournir les documents suivants :'}
-            </Text>
-            
-            <View style={styles.kycSteps}>
-              <View style={styles.kycStep}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>1</Text>
-                  <Text style={[styles.stepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-                    Pièce d'identité
-                  </Text>
-                </View>
-                <Text style={[styles.stepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-                  Carte nationale d'identité, passeport ou permis de conduire
+              <TouchableOpacity onPress={() => setIsKYSModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.kycContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.kycStatus}>
+                <Text style={[styles.kycStatusText, isDarkMode ? styles.darkText : styles.lightText]}>
+                  Statut:
                 </Text>
-                <TouchableOpacity
-                  style={[styles.uploadButton, idDocument && styles.uploadButtonSuccess]}
-                  onPress={pickDocument}
-                >
-                  <Ionicons
-                    name={idDocument ? "checkmark-circle" : "document-attach"}
-                    size={24}
-                    color={idDocument ? "#4caf50" : (isDarkMode ? "#fff" : "#000")}
-                  />
-                  <Text style={[
-                    styles.uploadButtonText,
-                    isDarkMode ? styles.darkText : styles.lightText,
-                    idDocument && styles.uploadButtonTextSuccess
-                  ]}>
-                    {idDocument ? 'Document sélectionné' : 'Sélectionner le document'}
-                  </Text>
-                </TouchableOpacity>
-                {idDocument && (
-                  <Text style={styles.selectedFileText}>
-                    Fichier: {idDocument.fileName || 'Image sélectionnée'}
-                  </Text>
-                )}
+                <Text style={[styles.kycStatusValue, { color: getKYCStatusColor() }]}>
+                  {getKYCStatusText()}
+                </Text>
               </View>
               
-              <View style={styles.kycStep}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>2</Text>
-                  <Text style={[styles.stepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
-                    Photo en direct
-                  </Text>
-                </View>
-                <Text style={[styles.stepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
-                  Prenez une photo de vous en temps réel pour vérification
-                </Text>
-                <TouchableOpacity
-                  style={[styles.uploadButton, livePhoto && styles.uploadButtonSuccess]}
-                  onPress={takeLivePhoto}
-                >
-                  <Ionicons
-                    name={livePhoto ? "checkmark-circle" : "camera"}
-                    size={24}
-                    color={livePhoto ? "#4caf50" : (isDarkMode ? "#fff" : "#000")}
+              {(kycStatus === 'en_cours' || kycStatus === 'verifie') && (
+                <View style={styles.kycMessage}>
+                  <Ionicons 
+                    name={kycStatus === 'verifie' ? "checkmark-circle" : "time"} 
+                    size={32} 
+                    color={getKYCStatusColor()} 
                   />
                   <Text style={[
-                    styles.uploadButtonText,
-                    isDarkMode ? styles.darkText : styles.lightText,
-                    livePhoto && styles.uploadButtonTextSuccess
+                    styles.kycMessageText,
+                    isDarkMode ? styles.darkText : styles.lightText
                   ]}>
-                    {livePhoto ? 'Photo prise' : 'Prendre une photo'}
+                    {kycStatus === 'verifie' 
+                      ? 'Votre identité a été vérifiée avec succès.' 
+                      : 'Votre demande de vérification est en cours de traitement.'}
                   </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            {/* Bouton de soumission seulement si les documents sont prêts */}
-            {idDocument && livePhoto && (
-              <TouchableOpacity 
-                style={[
-                  styles.submitKYCButton, 
-                  isSubmittingKYC && styles.submitKYCButtonDisabled
-                ]} 
-                onPress={submitKYC}
-                disabled={isSubmittingKYC}
-              >
-                {isSubmittingKYC ? (
-                  <Text style={styles.submitKYCButtonText}>
-                    Soumission en cours...
+                  {kycStatus === 'en_cours' && (
+                    <Text style={[
+                      styles.kycMessageSubText,
+                      isDarkMode ? styles.darkText : styles.lightText
+                    ]}>
+                      Vous ne pouvez pas soumettre de nouveaux documents pendant la vérification.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {(kycStatus === 'non_verifie' || kycStatus === 'rejete') && (
+                <View>
+                  <Text style={[styles.kycDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                    {kycStatus === 'rejete'
+                      ? 'Votre précédente vérification a été rejetée. Veuillez soumettre à nouveau vos documents.'
+                      : 'Vérifiez votre identité en 3 étapes simples'}
                   </Text>
-                ) : (
-                  <Text style={styles.submitKYCButtonText}>
-                    {kycStatus === 'rejete' ? 'Soumettre à nouveau' : 'Soumettre la vérification'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </>
-        )}
-      </View>
-    </View>
-  </View>
-</Modal>
+
+                  <View style={styles.progressIndicator}>
+                    <View style={[styles.progressDot, currentKycStep >= 1 && styles.progressDotActive]}>
+                      <Text style={styles.progressDotText}>1</Text>
+                    </View>
+                    <View style={[styles.progressLine, currentKycStep >= 2 && styles.progressLineActive]} />
+                    <View style={[styles.progressDot, currentKycStep >= 2 && styles.progressDotActive]}>
+                      <Text style={styles.progressDotText}>2</Text>
+                    </View>
+                    <View style={[styles.progressLine, currentKycStep >= 3 && styles.progressLineActive]} />
+                    <View style={[styles.progressDot, currentKycStep >= 3 && styles.progressDotActive]}>
+                      <Text style={styles.progressDotText}>3</Text>
+                    </View>
+                  </View>
+
+                  {currentKycStep === 1 && (
+                    <View style={styles.scanStepContainer}>
+                      <View style={styles.scanIconContainer}>
+                        <Ionicons name="card-outline" size={80} color="#2E7D32" />
+                      </View>
+                      <Text style={[styles.scanStepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Scanner le recto
+                      </Text>
+                      <Text style={[styles.scanStepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Placez le recto de votre pièce d'identité dans le cadre et scannez
+                      </Text>
+                      {idDocumentFront && (
+                        <View style={styles.previewContainer}>
+                          <Image source={{ uri: idDocumentFront.uri }} style={styles.previewImage} />
+                          <TouchableOpacity 
+                            style={styles.retakeButton}
+                            onPress={() => setIdDocumentFront(null)}
+                          >
+                            <Ionicons name="refresh" size={20} color="#fff" />
+                            <Text style={styles.retakeButtonText}>Reprendre</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.scanButton}
+                        onPress={scanDocumentFront}
+                      >
+                        <Ionicons name="scan" size={24} color="#fff" />
+                        <Text style={styles.scanButtonText}>
+                          {idDocumentFront ? 'Scanner à nouveau' : 'Scanner le recto'}
+                        </Text>
+                      </TouchableOpacity>
+                      {idDocumentFront && (
+                        <TouchableOpacity
+                          style={styles.nextButton}
+                          onPress={() => setCurrentKycStep(2)}
+                        >
+                          <Text style={styles.nextButtonText}>Continuer</Text>
+                          <Ionicons name="arrow-forward" size={20} color="#fff" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+
+                  {currentKycStep === 2 && (
+                    <View style={styles.scanStepContainer}>
+                      <View style={styles.scanIconContainer}>
+                        <Ionicons name="card" size={80} color="#2E7D32" />
+                      </View>
+                      <Text style={[styles.scanStepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Scanner le verso
+                      </Text>
+                      <Text style={[styles.scanStepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Retournez votre pièce d'identité et scannez le verso
+                      </Text>
+                      {idDocumentBack && (
+                        <View style={styles.previewContainer}>
+                          <Image source={{ uri: idDocumentBack.uri }} style={styles.previewImage} />
+                          <TouchableOpacity 
+                            style={styles.retakeButton}
+                            onPress={() => setIdDocumentBack(null)}
+                          >
+                            <Ionicons name="refresh" size={20} color="#fff" />
+                            <Text style={styles.retakeButtonText}>Reprendre</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.scanButton}
+                        onPress={scanDocumentBack}
+                      >
+                        <Ionicons name="scan" size={24} color="#fff" />
+                        <Text style={styles.scanButtonText}>
+                          {idDocumentBack ? 'Scanner à nouveau' : 'Scanner le verso'}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={styles.stepNavigation}>
+                        <TouchableOpacity
+                          style={styles.backStepButton}
+                          onPress={() => setCurrentKycStep(1)}
+                        >
+                          <Ionicons name="arrow-back" size={20} color="#2E7D32" />
+                          <Text style={styles.backStepButtonText}>Retour</Text>
+                        </TouchableOpacity>
+                        {idDocumentBack && (
+                          <TouchableOpacity
+                            style={styles.nextButton}
+                            onPress={() => setCurrentKycStep(3)}
+                          >
+                            <Text style={styles.nextButtonText}>Continuer</Text>
+                            <Ionicons name="arrow-forward" size={20} color="#fff" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                  {currentKycStep === 3 && (
+                    <View style={styles.scanStepContainer}>
+                      <View style={styles.scanIconContainer}>
+                        <Ionicons name="person-circle-outline" size={80} color="#2E7D32" />
+                      </View>
+                      <Text style={[styles.scanStepTitle, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Photo de votre visage
+                      </Text>
+                      <Text style={[styles.scanStepDescription, isDarkMode ? styles.darkText : styles.lightText]}>
+                        Prenez une photo claire de votre visage pour la vérification
+                      </Text>
+                      {facePhoto && (
+                        <View style={styles.previewContainer}>
+                          <Image source={{ uri: facePhoto.uri }} style={styles.previewImageFace} />
+                        </View>
+                      )}
+                      {!facePhoto && (
+                        <TouchableOpacity
+                          style={styles.scanButton}
+                          onPress={captureFacePhoto}
+                        >
+                          <Ionicons name="camera" size={24} color="#fff" />
+                          <Text style={styles.scanButtonText}>Prendre une photo</Text>
+                        </TouchableOpacity>
+                      )}
+                      <View style={styles.stepNavigation}>
+                        <TouchableOpacity
+                          style={styles.backStepButton}
+                          onPress={() => setCurrentKycStep(2)}
+                        >
+                          <Ionicons name="arrow-back" size={20} color="#2E7D32" />
+                          <Text style={styles.backStepButtonText}>Retour</Text>
+                        </TouchableOpacity>
+                        {facePhoto && (
+                          <TouchableOpacity
+                            style={styles.backStepButton}
+                            onPress={() => setFacePhoto(null)}
+                          >
+                            <Ionicons name="refresh" size={16} color="#2E7D32" />
+                            <Text style={styles.backStepButtonText}>Reprendre</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {facePhoto && idDocumentFront && idDocumentBack && (
+                        <TouchableOpacity
+                          style={[styles.submitKYCButton, isSubmittingKYC && styles.submitKYCButtonDisabled]}
+                          onPress={submitKYC}
+                          disabled={isSubmittingKYC}
+                        >
+                          <Text style={styles.submitKYCButtonText}>
+                            {isSubmittingKYC ? 'Soumission...' : 'Soumettre'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={isOrdersModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
